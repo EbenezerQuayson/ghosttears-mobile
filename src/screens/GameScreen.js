@@ -35,6 +35,9 @@ export default function GameScreen({ route, navigation }) {
     const [showPauseModal, setShowPauseModal] = useState(false);
     const [latestEvent, setLatestEvent] = useState(null);
 
+    // Profile State
+    const [playerNames, setPlayerNames] = useState({ hostName: 'Player 1', guestName: 'Player 2' });
+
     // Init Dictionary
     useEffect(() => {
         setTimeout(() => {
@@ -111,6 +114,11 @@ export default function GameScreen({ route, navigation }) {
                     // For now, simpler to just reset pending letter
                     setPendingLetter(null);
                     // Timer resets handled locally via turnTimer 30 resets in processMove
+                }
+
+                // Try to fetch names if we don't have them yet and both players are present
+                if (newRoom.host_id && newRoom.guest_id && newRoom.guest_id !== 'guest_anon') {
+                    multiEngine.getPlayerNames(newRoom.host_id, newRoom.guest_id).then(names => setPlayerNames(names));
                 }
             });
             multiEngine.subscribe();
@@ -345,8 +353,8 @@ export default function GameScreen({ route, navigation }) {
 
     const players = isMultiplayer
         ? [
-            { id: 'host', label: playerId === 'host' ? 'P1 (YOU)' : 'Player 1', score: playerId === 'host' ? playerLives.player : playerLives.bot },
-            { id: 'guest', label: playerId === 'guest' ? 'P2 (YOU)' : 'Player 2', score: playerId === 'guest' ? playerLives.player : playerLives.bot },
+            { id: 'host', label: playerId === 'host' ? `${playerNames.hostName} (YOU)` : playerNames.hostName, score: playerId === 'host' ? playerLives.player : playerLives.bot },
+            { id: 'guest', label: playerId === 'guest' ? `${playerNames.guestName} (YOU)` : playerNames.guestName, score: playerId === 'guest' ? playerLives.player : playerLives.bot },
         ]
         : [
             { id: 'player', label: 'YOU', score: playerLives.player },

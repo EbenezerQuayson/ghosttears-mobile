@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 const KEYS = [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
@@ -11,6 +12,13 @@ const screenWidth = Dimensions.get('window').width;
 const keyWidth = (screenWidth - 40) / 10; // Simple calc for max keys
 
 export default function Keyboard({ onKeyPress, disabled }) {
+    const handlePress = (key) => {
+        if (!disabled) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onKeyPress(key);
+        }
+    };
+
     return (
         <View style={styles.container}>
             {KEYS.map((row, rowIndex) => (
@@ -23,7 +31,7 @@ export default function Keyboard({ onKeyPress, disabled }) {
                                 { width: rowIndex === 1 ? keyWidth * 0.95 : keyWidth },
                                 disabled && styles.disabledKey
                             ]}
-                            onPress={() => onKeyPress(key)}
+                            onPress={() => handlePress(key)}
                             disabled={disabled}
                             activeOpacity={0.7}
                         >

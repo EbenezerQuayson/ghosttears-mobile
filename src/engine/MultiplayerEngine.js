@@ -20,12 +20,15 @@ export default class MultiplayerEngine {
     static async createRoom(gameSettings) {
         const code = this.generateRoomCode();
 
-        // In this MVP we just create a row anonymously
+        // Get the current authenticated user's ID
+        const { data: userData } = await supabase.auth.getUser();
+        const hostId = userData.user ? userData.user.id : 'host_anon';
+
         const { data, error } = await supabase
             .from('rooms')
             .insert([{
                 room_code: code,
-                host_id: 'host_anon',
+                host_id: hostId,
                 locked_words: { animals: [], countries: [], fruits: [], vegetables: [] },
                 game_settings: gameSettings
             }])
@@ -57,10 +60,14 @@ export default class MultiplayerEngine {
             return null;
         }
 
+        // Get the current authenticated user's ID
+        const { data: userData } = await supabase.auth.getUser();
+        const guestId = userData.user ? userData.user.id : 'guest_anon';
+
         // Update room to playing and set initial turn to host
         const { data: updatedRoom, error: updateError } = await supabase
             .from('rooms')
-            .update({ status: 'playing', guest_id: 'guest_anon', player_turn: 'host' })
+            .update({ status: 'playing', guest_id: guestId, player_turn: 'host' })
             .eq('id', data.id)
             .select()
             .single();
@@ -71,6 +78,22 @@ export default class MultiplayerEngine {
         }
 
         return updatedRoom;
+    }
+
+    async getPlayerNames(hostId, guestId) {
+        const names = { hostName: 'Player 1', guestName: 'Player 2' };
+
+        if (hostId && hostId !== 'host_anon') {
+            const { data } = await supabase.from('profiles').select('username').eq('id', hostId).single();
+            if (data?.username) names.hostName = data.username;
+        }
+
+        if (guestId && guestId !== 'guest_anon') {
+            const { data } = await supabase.from('profiles').select('username').eq('id', guestId).single();
+            if (data?.username) names.guestName = data.username;
+        }
+
+        return names;
     }
 
     subscribe() {
