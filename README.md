@@ -79,6 +79,4 @@ ghosttears-mobile/
 - [x] Phase 2: Online Multiplayer (Supabase)
 - [ ] Phase 3: Offline Peer-to-Peer Play (Local Hotspot via `react-native-tcp-socket`)
 
-## 📄 License
 
-[Specify License if any, e.g., MIT]
