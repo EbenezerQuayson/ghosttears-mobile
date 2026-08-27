@@ -54,7 +54,8 @@ export default function CategoryBoard({
 
 const styles = StyleSheet.create({
     container: {
-        height: 180,
+        minHeight: 160,
+        flex: 1,
         flexDirection: 'row',
         width: '100%',
         paddingHorizontal: 10,

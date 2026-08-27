@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Modal, Platform } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Modal, Platform, ScrollView } from 'react-native';
 import Toast from 'react-native-toast-message';
 import Keyboard from '../components/Keyboard';
 import CategoryBoard from '../components/CategoryBoard';
@@ -393,162 +393,164 @@ export default function GameScreen({ route, navigation }) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={{ width: '100%', maxWidth: isDesktop ? 1000 : 480, alignSelf: 'center', flex: 1, paddingVertical: 20 }}>
-                <Scoreboard players={players} />
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+                <View style={{ width: '100%', maxWidth: isDesktop ? 1000 : 480, alignSelf: 'center', flex: 1, paddingVertical: 20 }}>
+                    <Scoreboard players={players} />
 
-            <Modal visible={showPauseModal || isPaused} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>GAME PAUSED</Text>
+                    <Modal visible={showPauseModal || isPaused} transparent animationType="fade">
+                        <View style={styles.modalOverlay}>
+                            <View style={styles.modalContent}>
+                                <Text style={styles.modalTitle}>GAME PAUSED</Text>
 
-                        <TouchableOpacity
-                            style={styles.modalBtn}
-                            onPress={() => {
-                                setShowPauseModal(false);
-                                togglePause();
-                            }}
-                        >
-                            <Text style={styles.modalBtnText}>RESUME</Text>
-                        </TouchableOpacity>
-
-                        {(!isMultiplayer || playerId === 'host') && (
-                            <TouchableOpacity
-                                style={[styles.modalBtn, styles.dangerBtn]}
-                                onPress={() => {
-                                    // Hacky restart
-                                    if (!isMultiplayer) {
-                                        setGameState('playing');
-                                        setPlayerLives({ player: 0, bot: 0 });
-                                        setLockedWords({ animals: [], countries: [], fruits: [], vegetables: [] });
-                                        setCurrentFragment('');
-                                        setActiveCategory(null);
-                                        setPlayerTurn('player');
+                                <TouchableOpacity
+                                    style={styles.modalBtn}
+                                    onPress={() => {
                                         setShowPauseModal(false);
                                         togglePause();
-                                    } else {
-                                        // Not fully implemented for robust multiplayer restart yet
-                                        Toast.show({ type: 'info', text1: 'Restart functionality WIP.' });
-                                    }
+                                    }}
+                                >
+                                    <Text style={styles.modalBtnText}>RESUME</Text>
+                                </TouchableOpacity>
+
+                                {(!isMultiplayer || playerId === 'host') && (
+                                    <TouchableOpacity
+                                        style={[styles.modalBtn, styles.dangerBtn]}
+                                        onPress={() => {
+                                            // Hacky restart
+                                            if (!isMultiplayer) {
+                                                setGameState('playing');
+                                                setPlayerLives({ player: 0, bot: 0 });
+                                                setLockedWords({ animals: [], countries: [], fruits: [], vegetables: [] });
+                                                setCurrentFragment('');
+                                                setActiveCategory(null);
+                                                setPlayerTurn('player');
+                                                setShowPauseModal(false);
+                                                togglePause();
+                                            } else {
+                                                // Not fully implemented for robust multiplayer restart yet
+                                                Toast.show({ type: 'info', text1: 'Restart functionality WIP.' });
+                                            }
+                                        }}
+                                    >
+                                        <Text style={styles.modalBtnText}>RESTART ROOM</Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                <TouchableOpacity
+                                    style={styles.modalBtn}
+                                    onPress={() => {
+                                        setShowPauseModal(false);
+                                        navigation.navigate('Home');
+                                    }}
+                                >
+                                    <Text style={styles.modalBtnText}>QUIT TO MENU</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </Modal>
+
+                    {isMultiplayer && (
+                        <View style={styles.roomHeader}>
+                            <Text style={styles.roomText}>ROOM: {roomCode}</Text>
+                            <TouchableOpacity
+                                style={styles.pauseIconContainer}
+                                onPress={() => {
+                                    setShowPauseModal(true);
+                                    if (!isPaused) togglePause();
                                 }}
                             >
-                                <Text style={styles.modalBtnText}>RESTART ROOM</Text>
+                                <Text style={styles.pauseIconText}>||</Text>
                             </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {!isMultiplayer && (
+                        <View style={styles.roomHeader}>
+                            <Text style={styles.roomText}>SINGLE PLAYER</Text>
+                            <TouchableOpacity
+                                style={styles.pauseIconContainer}
+                                onPress={() => {
+                                    setShowPauseModal(true);
+                                    if (!isPaused) togglePause();
+                                }}
+                            >
+                                <Text style={styles.pauseIconText}>||</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    <View style={styles.turnContainer}>
+                        <Text style={styles.turnIndicator}>
+                            {gameState === 'game_over'
+                                ? 'GAME OVER'
+                                : (isMyTurn ? (!activeCategory ? 'PICK A CATEGORY' : 'YOUR TURN') : 'OPPONENT TURN')}
+                        </Text>
+                        {activeCategory && gameState === 'playing' && (
+                            <Text style={[styles.timerText, turnTimer <= 10 && styles.timerDanger]}>
+                                00:{turnTimer.toString().padStart(2, '0')}
+                            </Text>
                         )}
+                    </View>
 
-                        <TouchableOpacity
-                            style={styles.modalBtn}
-                            onPress={() => {
-                                setShowPauseModal(false);
-                                navigation.navigate('Home');
-                            }}
-                        >
-                            <Text style={styles.modalBtnText}>QUIT TO MENU</Text>
+                    {isDesktop ? (
+                        <View style={{ flexDirection: 'row', gap: 40, alignItems: 'stretch', flex: 1 }}>
+                            <View style={{ flex: 1 }}>
+                                <CategoryBoard
+                                    categories={selectedCategories}
+                                    activeCategory={activeCategory}
+                                    lockedWords={lockedWords}
+                                    gameState={gameState}
+                                    onSelectCategory={handleCategorySelect}
+                                    isMyTurn={isMyTurn}
+                                    isDesktop={isDesktop}
+                                />
+                            </View>
+                            <View style={{ flex: 1.2, alignItems: 'center', justifyContent: 'flex-start' }}>
+                                <ActivePlayArea
+                                    currentFragment={currentFragment}
+                                    pendingLetter={pendingLetter}
+                                    onLockIn={handleLockIn}
+                                    disabled={!isMyTurn || gameState !== 'playing'}
+                                    activeCategory={activeCategory}
+                                />
+                                <Keyboard
+                                    onKeyPress={handlePlayerKeyPress}
+                                    disabled={!isMyTurn || gameState !== 'playing'}
+                                />
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={{ flex: 1, gap: 20 }}>
+                            <CategoryBoard
+                                categories={selectedCategories}
+                                activeCategory={activeCategory}
+                                lockedWords={lockedWords}
+                                gameState={gameState}
+                                onSelectCategory={handleCategorySelect}
+                                isMyTurn={isMyTurn}
+                                isDesktop={isDesktop}
+                            />
+                            <ActivePlayArea
+                                currentFragment={currentFragment}
+                                pendingLetter={pendingLetter}
+                                onLockIn={handleLockIn}
+                                disabled={!isMyTurn || gameState !== 'playing'}
+                                activeCategory={activeCategory}
+                            />
+                            <Keyboard
+                                onKeyPress={handlePlayerKeyPress}
+                                disabled={!isMyTurn || gameState !== 'playing'}
+                            />
+                        </View>
+                    )}
+
+                    {gameState === 'game_over' && (
+                        <TouchableOpacity style={styles.exitButton} onPress={() => navigation.navigate('Home')}>
+                            <Text style={styles.exitText}>EXIT TO MENU</Text>
                         </TouchableOpacity>
-                    </View>
+                    )}
                 </View>
-            </Modal>
-
-            {isMultiplayer && (
-                <View style={styles.roomHeader}>
-                    <Text style={styles.roomText}>ROOM: {roomCode}</Text>
-                    <TouchableOpacity
-                        style={styles.pauseIconContainer}
-                        onPress={() => {
-                            setShowPauseModal(true);
-                            if (!isPaused) togglePause();
-                        }}
-                    >
-                        <Text style={styles.pauseIconText}>||</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
-
-            {!isMultiplayer && (
-                <View style={styles.roomHeader}>
-                    <Text style={styles.roomText}>SINGLE PLAYER</Text>
-                    <TouchableOpacity
-                        style={styles.pauseIconContainer}
-                        onPress={() => {
-                            setShowPauseModal(true);
-                            if (!isPaused) togglePause();
-                        }}
-                    >
-                        <Text style={styles.pauseIconText}>||</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
-
-            <View style={styles.turnContainer}>
-                <Text style={styles.turnIndicator}>
-                    {gameState === 'game_over'
-                        ? 'GAME OVER'
-                        : (isMyTurn ? (!activeCategory ? 'PICK A CATEGORY' : 'YOUR TURN') : 'OPPONENT TURN')}
-                </Text>
-                {activeCategory && gameState === 'playing' && (
-                    <Text style={[styles.timerText, turnTimer <= 10 && styles.timerDanger]}>
-                        00:{turnTimer.toString().padStart(2, '0')}
-                    </Text>
-                )}
-            </View>
-
-            {isDesktop ? (
-                <View style={{ flexDirection: 'row', gap: 40, alignItems: 'stretch', flex: 1 }}>
-                    <View style={{ flex: 1 }}>
-                        <CategoryBoard
-                            categories={selectedCategories}
-                            activeCategory={activeCategory}
-                            lockedWords={lockedWords}
-                            gameState={gameState}
-                            onSelectCategory={handleCategorySelect}
-                            isMyTurn={isMyTurn}
-                            isDesktop={isDesktop}
-                        />
-                    </View>
-                    <View style={{ flex: 1.2, alignItems: 'center', justifyContent: 'flex-start' }}>
-                        <ActivePlayArea
-                            currentFragment={currentFragment}
-                            pendingLetter={pendingLetter}
-                            onLockIn={handleLockIn}
-                            disabled={!isMyTurn || gameState !== 'playing'}
-                            activeCategory={activeCategory}
-                        />
-                        <Keyboard
-                            onKeyPress={handlePlayerKeyPress}
-                            disabled={!isMyTurn || gameState !== 'playing'}
-                        />
-                    </View>
-                </View>
-            ) : (
-                <View style={{ flex: 1 }}>
-                    <CategoryBoard
-                        categories={selectedCategories}
-                        activeCategory={activeCategory}
-                        lockedWords={lockedWords}
-                        gameState={gameState}
-                        onSelectCategory={handleCategorySelect}
-                        isMyTurn={isMyTurn}
-                        isDesktop={isDesktop}
-                    />
-                    <ActivePlayArea
-                        currentFragment={currentFragment}
-                        pendingLetter={pendingLetter}
-                        onLockIn={handleLockIn}
-                        disabled={!isMyTurn || gameState !== 'playing'}
-                        activeCategory={activeCategory}
-                    />
-                    <Keyboard
-                        onKeyPress={handlePlayerKeyPress}
-                        disabled={!isMyTurn || gameState !== 'playing'}
-                    />
-                </View>
-            )}
-
-            {gameState === 'game_over' && (
-                <TouchableOpacity style={styles.exitButton} onPress={() => navigation.navigate('Home')}>
-                    <Text style={styles.exitText}>EXIT TO MENU</Text>
-                </TouchableOpacity>
-            )}
-            </View>
+            </ScrollView>
         </SafeAreaView>
     );
 }

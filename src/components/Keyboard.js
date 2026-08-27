@@ -1,14 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 
 const KEYS = [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '⌫']
 ];
-
-const screenWidth = Dimensions.get('window').width;
-const keyWidth = (screenWidth > 480 ? 480 : screenWidth - 40) / 10; // Handle web max-width
 
 export default function Keyboard({ onKeyPress, disabled }) {
     return (
@@ -20,7 +17,7 @@ export default function Keyboard({ onKeyPress, disabled }) {
                             key={key}
                             style={({ hovered, pressed }) => [
                                 styles.key,
-                                { width: key === '⌫' ? keyWidth * 1.5 : (rowIndex === 1 ? keyWidth * 0.95 : keyWidth) },
+                                key === '⌫' && { flex: 1.5, maxWidth: 75 },
                                 disabled && styles.disabledKey,
                                 hovered && !disabled && styles.hoveredKey,
                                 pressed && !disabled && styles.pressedKey,
@@ -60,6 +57,8 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     key: {
+        flex: 1,
+        maxWidth: 45,
         height: 50,
         backgroundColor: '#252243',
         justifyContent: 'center',
