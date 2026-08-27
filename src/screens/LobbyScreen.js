@@ -61,7 +61,8 @@ export default function LobbyScreen({ navigation, route }) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <Text style={styles.title}>{mode === 'host' ? 'HOST GAME' : 'JOIN GAME'}</Text>
+            <View style={{ width: '100%', maxWidth: 480, alignSelf: 'center', flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={styles.title}>{mode === 'host' ? 'HOST GAME' : 'JOIN GAME'}</Text>
 
             {mode === 'host' ? (
                 <View style={styles.content}>
@@ -92,12 +93,13 @@ export default function LobbyScreen({ navigation, route }) {
                 </View>
             )}
 
-            <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => navigation.goBack()}
-            >
-                <Text style={styles.cancelText}>CANCEL</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => navigation.goBack()}
+                >
+                    <Text style={styles.cancelText}>CANCEL</Text>
+                </TouchableOpacity>
+            </View>
         </SafeAreaView>
     );
 }
@@ -105,82 +107,101 @@ export default function LobbyScreen({ navigation, route }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0a0a0a',
+        backgroundColor: 'transparent',
         alignItems: 'center',
         justifyContent: 'center',
         padding: 20,
     },
     title: {
         color: '#ffffff',
-        fontSize: 24,
-        fontWeight: 'bold',
+        fontSize: 32,
+        fontWeight: '900',
         letterSpacing: 4,
-        marginBottom: 40,
+        marginBottom: 50,
+        textAlign: 'center',
     },
     content: {
         alignItems: 'center',
         marginBottom: 40,
+        width: '100%',
     },
     label: {
-        color: '#888888',
-        fontSize: 16,
+        color: '#a1a1aa',
+        fontSize: 18,
         letterSpacing: 2,
-        marginBottom: 10,
+        marginBottom: 15,
+        fontWeight: '900',
     },
     code: {
-        color: '#ff3333',
-        fontSize: 48,
+        color: '#FFC107',
+        fontSize: 56,
         fontWeight: '900',
-        letterSpacing: 10,
-    },
-    input: {
-        backgroundColor: '#1f1f1f',
-        color: '#ffffff',
-        fontSize: 32,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        width: 200,
-        height: 60,
-        borderWidth: 1,
-        borderColor: '#333333',
-        borderRadius: 4,
         letterSpacing: 10,
         marginBottom: 20,
     },
+    input: {
+        backgroundColor: '#252243',
+        color: '#ffffff',
+        fontSize: 42,
+        fontWeight: '900',
+        textAlign: 'center',
+        width: 250,
+        height: 80,
+        borderWidth: 2,
+        borderColor: '#3B3663',
+        borderRadius: 20,
+        letterSpacing: 10,
+        marginBottom: 30,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 5,
+    },
     joinButton: {
-        backgroundColor: '#ff3333',
-        paddingVertical: 12,
-        paddingHorizontal: 40,
-        borderRadius: 4,
+        backgroundColor: '#FFC107',
+        paddingVertical: 18,
+        paddingHorizontal: 60,
+        borderRadius: 20,
+        shadowColor: '#FFC107',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 8,
     },
     joinButtonDisabled: {
-        backgroundColor: '#1a0000',
-        borderColor: '#330000',
-        borderWidth: 1,
+        backgroundColor: '#252243',
+        borderColor: '#3B3663',
+        borderWidth: 2,
+        shadowOpacity: 0,
+        elevation: 0,
     },
     joinText: {
-        color: '#ffffff',
-        fontWeight: 'bold',
+        color: '#18152E',
+        fontWeight: '900',
         letterSpacing: 2,
+        fontSize: 18,
     },
     joinTextDisabled: {
-        color: '#555555',
+        color: '#666666',
     },
     waitingText: {
-        color: '#888888',
+        color: '#8B5CF6',
         marginTop: 20,
+        fontWeight: '600',
+        letterSpacing: 1,
     },
     cancelButton: {
-        marginTop: 20,
-        borderWidth: 1,
-        borderColor: '#333333',
-        paddingVertical: 12,
-        paddingHorizontal: 30,
-        borderRadius: 4,
+        marginTop: 30,
+        borderWidth: 2,
+        borderColor: '#3B3663',
+        paddingVertical: 15,
+        paddingHorizontal: 40,
+        borderRadius: 20,
     },
     cancelText: {
-        color: '#aaaaaa',
-        fontWeight: 'bold',
+        color: '#a1a1aa',
+        fontWeight: '900',
         letterSpacing: 1,
     }
 });

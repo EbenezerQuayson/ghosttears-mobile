@@ -1,14 +1,14 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Pressable, Platform } from 'react-native';
 
 const KEYS = [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
-    ['Z', 'X', 'C', 'V', 'B', 'N', 'M']
+    ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '⌫']
 ];
 
 const screenWidth = Dimensions.get('window').width;
-const keyWidth = (screenWidth - 40) / 10; // Simple calc for max keys
+const keyWidth = (screenWidth > 480 ? 480 : screenWidth - 40) / 10; // Handle web max-width
 
 export default function Keyboard({ onKeyPress, disabled }) {
     return (
@@ -16,19 +16,31 @@ export default function Keyboard({ onKeyPress, disabled }) {
             {KEYS.map((row, rowIndex) => (
                 <View key={`row-${rowIndex}`} style={styles.row}>
                     {row.map((key) => (
-                        <TouchableOpacity
+                        <Pressable
                             key={key}
-                            style={[
+                            style={({ hovered, pressed }) => [
                                 styles.key,
-                                { width: rowIndex === 1 ? keyWidth * 0.95 : keyWidth },
-                                disabled && styles.disabledKey
+                                { width: key === '⌫' ? keyWidth * 1.5 : (rowIndex === 1 ? keyWidth * 0.95 : keyWidth) },
+                                disabled && styles.disabledKey,
+                                hovered && !disabled && styles.hoveredKey,
+                                pressed && !disabled && styles.pressedKey,
+                                // Web cursor support
+                                Platform.OS === 'web' && { cursor: disabled ? 'not-allowed' : 'pointer' }
                             ]}
                             onPress={() => onKeyPress(key)}
                             disabled={disabled}
-                            activeOpacity={0.7}
                         >
-                            <Text style={[styles.keyText, disabled && styles.disabledKeyText]}>{key}</Text>
-                        </TouchableOpacity>
+                            {({ hovered }) => (
+                                <Text style={[
+                                    styles.keyText, 
+                                    disabled && styles.disabledKeyText,
+                                    hovered && !disabled && styles.hoveredKeyText,
+                                    key === '⌫' && { fontSize: 24 } // Slightly larger icon for backspace
+                                ]}>
+                                    {key}
+                                </Text>
+                            )}
+                        </Pressable>
                     ))}
                 </View>
             ))}
@@ -49,24 +61,48 @@ const styles = StyleSheet.create({
     },
     key: {
         height: 50,
-        backgroundColor: '#1f1f1f',
+        backgroundColor: '#252243',
         justifyContent: 'center',
         alignItems: 'center',
         marginHorizontal: 3,
-        borderRadius: 4,
+        borderRadius: 25,
         borderWidth: 1,
-        borderColor: '#333333',
+        borderColor: '#3B3663',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    hoveredKey: {
+        backgroundColor: '#3b3663',
+        borderColor: '#2DD4BF',
+        ...Platform.select({
+            web: {
+                boxShadow: '0px 0px 15px rgba(45, 212, 191, 0.4)',
+                transform: 'translateY(-2px)'
+            }
+        })
+    },
+    pressedKey: {
+        backgroundColor: '#18152E',
+        borderColor: '#2DD4BF',
     },
     keyText: {
         color: '#ffffff',
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: 16,
+        fontWeight: '900',
+    },
+    hoveredKeyText: {
+        color: '#2DD4BF',
     },
     disabledKey: {
-        backgroundColor: '#0a0a0a',
-        borderColor: '#1a1a1a',
+        backgroundColor: '#18152E',
+        borderColor: '#1f1b36',
+        shadowOpacity: 0,
+        elevation: 0,
     },
     disabledKeyText: {
-        color: '#444444',
+        color: '#4b4b5c',
     }
 });

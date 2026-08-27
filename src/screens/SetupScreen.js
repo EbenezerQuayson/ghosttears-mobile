@@ -43,7 +43,8 @@ export default function SetupScreen({ navigation, route }) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <Text style={styles.title}>GAME SETUP</Text>
+            <View style={{ width: '100%', maxWidth: 480, alignSelf: 'center', flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={styles.title}>GAME SETUP</Text>
 
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>TURN TIMER</Text>
@@ -88,9 +89,10 @@ export default function SetupScreen({ navigation, route }) {
                 </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
-                <Text style={styles.cancelText}>BACK TO MENU</Text>
-            </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
+                    <Text style={styles.cancelText}>BACK TO MENU</Text>
+                </TouchableOpacity>
+            </View>
         </SafeAreaView>
     );
 }
@@ -98,17 +100,18 @@ export default function SetupScreen({ navigation, route }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0a0a0a',
+        backgroundColor: 'transparent',
         alignItems: 'center',
         justifyContent: 'center',
         padding: 20,
     },
     title: {
         color: '#ffffff',
-        fontSize: 24,
-        fontWeight: 'bold',
+        fontSize: 32,
+        fontWeight: '900',
         letterSpacing: 4,
-        marginBottom: 40,
+        marginBottom: 50,
+        textAlign: 'center',
     },
     section: {
         width: '100%',
@@ -116,11 +119,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     sectionTitle: {
-        color: '#ff3333',
-        fontSize: 14,
-        fontWeight: 'bold',
+        color: '#8B5CF6',
+        fontSize: 16,
+        fontWeight: '900',
         letterSpacing: 2,
-        marginBottom: 15,
+        marginBottom: 20,
     },
     row: {
         flexDirection: 'row',
@@ -134,63 +137,72 @@ const styles = StyleSheet.create({
         gap: 15,
     },
     timerButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderWidth: 1,
-        borderColor: '#333333',
-        borderRadius: 4,
-        backgroundColor: '#111111',
+        paddingVertical: 15,
+        paddingHorizontal: 25,
+        borderWidth: 2,
+        borderColor: '#3B3663',
+        borderRadius: 20,
+        backgroundColor: '#252243',
     },
     categoryButton: {
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        borderWidth: 1,
-        borderColor: '#333333',
-        borderRadius: 4,
-        backgroundColor: '#111111',
+        paddingVertical: 15,
+        paddingHorizontal: 25,
+        borderWidth: 2,
+        borderColor: '#3B3663',
+        borderRadius: 20,
+        backgroundColor: '#252243',
         minWidth: '40%',
         alignItems: 'center',
     },
     activeButton: {
-        borderColor: '#ff3333',
-        backgroundColor: '#1a0000',
+        borderColor: '#2DD4BF',
+        backgroundColor: '#1d3b41',
     },
     timerText: {
-        color: '#888888',
-        fontWeight: 'bold',
-        fontSize: 16,
+        color: '#a1a1aa',
+        fontWeight: '900',
+        fontSize: 18,
     },
     categoryText: {
-        color: '#888888',
-        fontWeight: 'bold',
-        fontSize: 12,
+        color: '#a1a1aa',
+        fontWeight: '900',
+        fontSize: 14,
         letterSpacing: 1,
     },
     activeText: {
-        color: '#ffffff',
+        color: '#2DD4BF',
     },
     continueButton: {
-        backgroundColor: '#ff3333',
-        paddingVertical: 15,
+        backgroundColor: '#FFC107',
+        paddingVertical: 20,
         paddingHorizontal: 40,
-        borderRadius: 4,
+        borderRadius: 20,
         width: '80%',
         alignItems: 'center',
         marginTop: 20,
+        shadowColor: '#FFC107',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 8,
     },
     continueText: {
-        color: '#ffffff',
-        fontWeight: 'bold',
+        color: '#18152E',
+        fontWeight: '900',
         letterSpacing: 2,
-        fontSize: 16,
+        fontSize: 18,
     },
     cancelButton: {
-        marginTop: 20,
-        paddingVertical: 10,
+        marginTop: 30,
+        paddingVertical: 15,
+        paddingHorizontal: 30,
+        borderRadius: 20,
+        borderWidth: 2,
+        borderColor: '#3B3663',
     },
     cancelText: {
-        color: '#888888',
-        fontWeight: 'bold',
+        color: '#a1a1aa',
+        fontWeight: '900',
         letterSpacing: 1,
     }
 });

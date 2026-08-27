@@ -8,10 +8,11 @@ export default function CategoryBoard({
     gameState,
     onSelectCategory,
     isMyTurn,
-    currentFragment // keeping it in props in case, but no need to use it
+    isDesktop,
+    currentFragment
 }) {
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, isDesktop && { height: '100%', minHeight: 400 }]}>
             {categories.map((cat, index) => {
                 const isActive = activeCategory === cat;
                 const words = lockedWords[cat] || [];
@@ -53,55 +54,53 @@ export default function CategoryBoard({
 
 const styles = StyleSheet.create({
     container: {
-        height: 180, // Restricted height for Active Play Area room
+        height: 180,
         flexDirection: 'row',
         width: '100%',
-        paddingHorizontal: 5,
+        paddingHorizontal: 10,
         paddingTop: 10,
-        backgroundColor: '#0a0a0a',
+        backgroundColor: 'transparent',
     },
     column: {
         flex: 1,
-        marginHorizontal: 2,
-        borderWidth: 1,
-        borderColor: '#1a1a1a',
-        backgroundColor: '#0f0f0f',
-        borderRadius: 4,
+        marginHorizontal: 4,
+        borderWidth: 2,
+        borderColor: '#3B3663',
+        backgroundColor: '#252243',
+        borderRadius: 20,
         overflow: 'hidden',
     },
     idleColumn: {
-        borderColor: '#333333',
+        borderColor: '#18152E',
     },
     activeColumn: {
-        borderColor: '#ff3333',
-        backgroundColor: '#140000',
+        borderColor: '#FFC107',
+        backgroundColor: '#2D294E',
     },
     headerBox: {
-        backgroundColor: '#1a1a1a',
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#2a2a2a',
+        backgroundColor: '#18152E',
+        paddingVertical: 12,
         alignItems: 'center',
     },
     headerText: {
-        color: '#888',
-        fontSize: 10,
-        fontWeight: 'bold',
-        letterSpacing: 1,
+        color: '#a1a1aa',
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 2,
     },
     activeHeaderText: {
-        color: '#ff3333',
+        color: '#FFC107',
     },
     wordList: {
         flex: 1,
-        padding: 5,
+        padding: 10,
     },
     lockedWord: {
-        color: '#555',
+        color: '#6b7280',
         fontSize: 12,
         fontWeight: 'bold',
         textAlign: 'center',
-        marginBottom: 4,
+        marginBottom: 6,
         letterSpacing: 1,
         textDecorationLine: 'line-through',
     }

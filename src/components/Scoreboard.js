@@ -5,8 +5,6 @@ const PENALTY_WORD = 'GHOSTTEARS';
 
 // A dynamic table to show current penalties for each player
 export default function Scoreboard({ players }) {
-    // players array structure: [{ id: 'host', label: 'Player 1', score: 0 }]
-
     return (
         <View style={styles.container}>
             {/* Header Row */}
@@ -50,10 +48,12 @@ const styles = StyleSheet.create({
     container: {
         paddingHorizontal: 10,
         paddingVertical: 10,
-        backgroundColor: '#0f0f0f',
+        backgroundColor: '#18152E',
         borderBottomWidth: 1,
-        borderBottomColor: '#1a1a1a',
+        borderBottomColor: '#252243',
         width: '100%',
+        borderRadius: 20,
+        marginTop: 10,
     },
     headerRow: {
         flexDirection: 'row',
@@ -96,10 +96,10 @@ const styles = StyleSheet.create({
         marginHorizontal: 1,
     },
     activeSlot: {
-        backgroundColor: '#ff333333', // Slight red background
-        borderRadius: 2,
+        backgroundColor: '#FFC10733', // 20% opacity gold
+        borderRadius: 4,
         borderWidth: 1,
-        borderColor: '#ff3333',
+        borderColor: '#FFC107',
     },
     inactiveSlot: {
         backgroundColor: 'transparent',
@@ -109,9 +109,9 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     activeText: {
-        color: '#ff3333',
+        color: '#FFC107', // Bright Gold
     },
     inactiveText: {
-        color: '#333333', // Dim gray when not active
+        color: '#333333',
     }
 });
