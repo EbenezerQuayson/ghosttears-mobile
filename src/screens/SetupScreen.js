@@ -9,6 +9,8 @@ export default function SetupScreen({ navigation, route }) {
 
     const [selectedTimer, setSelectedTimer] = useState(30);
     const [selectedCategories, setSelectedCategories] = useState(['animals', 'countries', 'fruits', 'vegetables']);
+    const [numBots, setNumBots] = useState(1);
+    const [difficulty, setDifficulty] = useState('intermediate');
 
     const toggleCategory = (cat) => {
         setSelectedCategories(prev => {
@@ -31,11 +33,13 @@ export default function SetupScreen({ navigation, route }) {
     const handleContinue = () => {
         const gameSettings = {
             turnTimer: selectedTimer,
-            categories: selectedCategories
+            categories: selectedCategories,
+            numBots: mode === 'single' ? numBots : 0,
+            difficulty: mode === 'single' ? difficulty : null
         };
 
         if (mode === 'single') {
-            navigation.replace('Game', { mode: 'single', gameSettings });
+            navigation.replace('Game', { mode: 'single', gameSettings, gameId: `single_${Date.now()}` });
         } else if (mode === 'host') {
             navigation.replace('Lobby', { mode: 'host', gameSettings });
         }
@@ -45,6 +49,44 @@ export default function SetupScreen({ navigation, route }) {
         <SafeAreaView style={styles.container}>
             <View style={{ width: '100%', maxWidth: 480, alignSelf: 'center', flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                 <Text style={styles.title}>GAME SETUP</Text>
+
+            {mode === 'single' && (
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>NUMBER OF AI PLAYERS</Text>
+                    <View style={styles.row}>
+                        {[1, 2, 3].map(num => (
+                            <TouchableOpacity
+                                key={`bots-${num}`}
+                                style={[styles.timerButton, numBots === num && styles.activeButton]}
+                                onPress={() => setNumBots(num)}
+                            >
+                                <Text style={[styles.timerText, numBots === num && styles.activeText]}>
+                                    {num}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            )}
+
+            {mode === 'single' && (
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>AI DIFFICULTY</Text>
+                    <View style={styles.row}>
+                        {['novice', 'intermediate', 'expert'].map(level => (
+                            <TouchableOpacity
+                                key={`diff-${level}`}
+                                style={[styles.timerButton, { paddingHorizontal: 15 }, difficulty === level && styles.activeButton]}
+                                onPress={() => setDifficulty(level)}
+                            >
+                                <Text style={[styles.timerText, { fontSize: 14 }, difficulty === level && styles.activeText]}>
+                                    {level.toUpperCase()}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            )}
 
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>TURN TIMER</Text>

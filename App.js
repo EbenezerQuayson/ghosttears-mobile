@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Toast from 'react-native-toast-message';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import ResponsiveLayout from './src/components/ResponsiveLayout';
 import HomeScreen from './src/screens/HomeScreen';
@@ -11,6 +12,7 @@ import LobbyScreen from './src/screens/LobbyScreen';
 import GameScreen from './src/screens/GameScreen';
 
 const Stack = createNativeStackNavigator();
+const NAVIGATION_STATE_KEY = 'GHOSTTEARS_NAVIGATION_STATE';
 
 const TransparentTheme = {
   ...DefaultTheme,
@@ -21,9 +23,37 @@ const TransparentTheme = {
 };
 
 export default function App() {
+  const [isReady, setIsReady] = useState(false);
+  const [initialState, setInitialState] = useState(undefined);
+
+  useEffect(() => {
+    const restoreState = async () => {
+      try {
+        const savedStateString = await AsyncStorage.getItem(NAVIGATION_STATE_KEY);
+        const state = savedStateString ? JSON.parse(savedStateString) : undefined;
+        if (state !== undefined) {
+          setInitialState(state);
+        }
+      } catch (e) {
+        console.error('Failed to load navigation state', e);
+      } finally {
+        setIsReady(true);
+      }
+    };
+    restoreState();
+  }, []);
+
+  if (!isReady) {
+    return null; 
+  }
+
   return (
     <ResponsiveLayout>
-      <NavigationContainer theme={TransparentTheme}>
+      <NavigationContainer 
+        theme={TransparentTheme}
+        initialState={initialState}
+        onStateChange={(state) => AsyncStorage.setItem(NAVIGATION_STATE_KEY, JSON.stringify(state))}
+      >
         <Stack.Navigator
             initialRouteName="Home"
             screenOptions={{

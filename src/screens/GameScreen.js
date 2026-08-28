@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Modal, Platform, ScrollView } from 'react-native';
 import Toast from 'react-native-toast-message';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Keyboard from '../components/Keyboard';
 import CategoryBoard from '../components/CategoryBoard';
 import ActivePlayArea from '../components/ActivePlayArea';
@@ -10,12 +11,12 @@ import gameDictionary, { initializeDictionary } from '../engine/WordEngine';
 import MultiplayerEngine from '../engine/MultiplayerEngine';
 
 export default function GameScreen({ route, navigation }) {
-    const { mode, roomCode, playerId, gameSettings } = route?.params || { mode: 'single' };
+    const { mode, gameSettings, roomCode, playerId, initialPlayers, gameId } = route.params;
     const isMultiplayer = mode === 'multiplayer';
     const { isDesktop } = useResponsive();
 
     // Fallback settings if not provided
-    const settings = gameSettings || { turnTimer: 30, categories: ['animals', 'countries', 'fruits', 'vegetables'] };
+    const settings = gameSettings || { turnTimer: 30, categories: ['animals', 'countries', 'fruits', 'vegetables'], numBots: 1, difficulty: 'intermediate' };
 
     const [isInitializing, setIsInitializing] = useState(true);
     const [engine, setEngine] = useState(null);
@@ -28,22 +29,84 @@ export default function GameScreen({ route, navigation }) {
     const [pendingLetter, setPendingLetter] = useState(null);
 
     // Meta Game State
-    const [playerTurn, setPlayerTurn] = useState(isMultiplayer ? 'host' : 'player');
-    const [playerLives, setPlayerLives] = useState({ player: 0, bot: 0 }); // Maps to 'player'/'bot' locally
+    const initNames = {};
+    let initLives = { player: 0 };
+    let initTurnOrder = ['player'];
+    if (isMultiplayer && initialPlayers) {
+        initLives = {};
+        initTurnOrder = [];
+        initialPlayers.forEach(p => {
+            initLives[p.id] = p.penalty;
+            initTurnOrder.push(p.id);
+            initNames[p.id] = p.name;
+        });
+    } else if (!isMultiplayer) {
+        for (let i = 1; i <= (settings.numBots || 1); i++) {
+            initLives[`bot${i}`] = 0;
+            initTurnOrder.push(`bot${i}`);
+        }
+    }
+
+    const [playerNames] = useState(initNames);
+    const [playerLives, setPlayerLives] = useState(initLives);
+    const [turnOrder, setTurnOrder] = useState(initTurnOrder);
+    const [playerTurn, setPlayerTurn] = useState(isMultiplayer ? initTurnOrder[0] : 'player');
     const [gameState, setGameState] = useState('playing'); // 'playing', 'challenged', 'game_over'
     const [turnTimer, setTurnTimer] = useState(settings.turnTimer);
     const [turnEndsAt, setTurnEndsAt] = useState(null);
     const [isPaused, setIsPaused] = useState(false);
     const [showPauseModal, setShowPauseModal] = useState(false);
     const [latestEvent, setLatestEvent] = useState(null);
+    const [confirmAction, setConfirmAction] = useState(null);
 
-    // Init Dictionary
+    const getNextPlayer = (currentPlayer, currentTurnOrder) => {
+        const index = currentTurnOrder.indexOf(currentPlayer);
+        if (index === -1) return currentTurnOrder[0];
+        return currentTurnOrder[(index + 1) % currentTurnOrder.length];
+    };
+
+    // Init Dictionary and Load Local State
     useEffect(() => {
-        setTimeout(() => {
+        setTimeout(async () => {
             initializeDictionary();
+            if (!isMultiplayer && gameId) {
+                try {
+                    const saved = await AsyncStorage.getItem(`GHOSTTEARS_SP_${gameId}`);
+                    if (saved) {
+                        const state = JSON.parse(saved);
+                        setPlayerLives(state.playerLives || initLives);
+                        setTurnOrder(state.turnOrder || initTurnOrder);
+                        setPlayerTurn(state.playerTurn || 'player');
+                        setGameState(state.gameState || 'playing');
+                        setLockedWords(state.lockedWords || { animals: [], countries: [], fruits: [], vegetables: [] });
+                        setCurrentFragment(state.currentFragment || '');
+                        setActiveCategory(state.activeCategory || null);
+                        if (state.turnEndsAt) setTurnEndsAt(state.turnEndsAt);
+                    }
+                } catch(e) {
+                    console.error('Failed to load local state', e);
+                }
+            }
             setIsInitializing(false);
         }, 100);
     }, []);
+
+    // Save Local State
+    useEffect(() => {
+        if (!isMultiplayer && !isInitializing && gameId) {
+            const stateToSave = {
+                playerLives,
+                turnOrder,
+                playerTurn,
+                gameState,
+                lockedWords,
+                currentFragment,
+                activeCategory,
+                turnEndsAt
+            };
+            AsyncStorage.setItem(`GHOSTTEARS_SP_${gameId}`, JSON.stringify(stateToSave)).catch(e => console.error(e));
+        }
+    }, [playerLives, turnOrder, playerTurn, gameState, lockedWords, currentFragment, activeCategory, turnEndsAt, isInitializing, isMultiplayer, gameId]);
 
     // Timer Hook
     useEffect(() => {
@@ -57,7 +120,16 @@ export default function GameScreen({ route, navigation }) {
                 setTurnTimer(remainingSecs);
 
                 if (remainingRaw <= 0) {
-                    handleTimeout();
+                    if (isMultiplayer && playerTurn !== playerId) {
+                        // Keep running to check for disconnects
+                        if (playerId === turnOrder[0] && remainingRaw <= -3000) {
+                            handleDisconnectTimeout();
+                        } else {
+                            animationFrameId = requestAnimationFrame(updateTimer);
+                        }
+                    } else {
+                        handleTimeout();
+                    }
                 } else {
                     animationFrameId = requestAnimationFrame(updateTimer);
                 }
@@ -71,16 +143,25 @@ export default function GameScreen({ route, navigation }) {
         return () => {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
         };
-    }, [gameState, activeCategory, turnEndsAt, isPaused, playerTurn, currentFragment]);
+    }, [turnEndsAt, gameState, activeCategory, isPaused, isMultiplayer, playerTurn, playerId, turnOrder]);
 
     // Engine Init
     useEffect(() => {
         if (isMultiplayer && roomCode && playerId && !isInitializing) {
             const multiEngine = new MultiplayerEngine(roomCode, playerId, (newRoom) => {
-                const yourPenalty = playerId === 'host' ? newRoom.host_penalty : newRoom.guest_penalty;
-                const oppPenalty = playerId === 'host' ? newRoom.guest_penalty : newRoom.host_penalty;
+                
+                // Track if we just got eliminated
+                const myOldPenalty = playerLives[playerId] || 0;
+                const myNewPenalty = newRoom.players.find(p => p.id === playerId)?.penalty || 0;
+                
+                const newLives = {};
+                newRoom.players.forEach(p => newLives[p.id] = p.penalty);
+                setPlayerLives(newLives);
 
-                setPlayerLives({ player: yourPenalty, bot: oppPenalty });
+                // Update active turn order (eliminate players with >= 10)
+                const activeTurnOrder = newRoom.players.filter(p => p.penalty < 10).map(p => p.id);
+                setTurnOrder(activeTurnOrder);
+
                 setCurrentFragment(newRoom.current_fragment);
                 setPlayerTurn(newRoom.player_turn);
                 setActiveCategory(newRoom.active_category);
@@ -99,6 +180,10 @@ export default function GameScreen({ route, navigation }) {
                     setLatestEvent(newRoom.latest_event);
                 }
 
+                if (myNewPenalty >= 10 && myOldPenalty < 10 && activeTurnOrder.length > 1) {
+                    Toast.show({ type: 'error', text1: 'Eliminated!', text2: 'You have been eliminated! Spectating remaining players.' });
+                }
+
                 if (newRoom.status === 'finished') {
                     setGameState('game_over');
                 } else if (!newRoom.active_category && newRoom.current_fragment === '') {
@@ -109,18 +194,16 @@ export default function GameScreen({ route, navigation }) {
                     setGameState('playing');
                 } else {
                     setGameState('playing');
-                    // Reset timer on turn pass IF it just changed from us to them or them to us
-                    // For now, simpler to just reset pending letter
                     setPendingLetter(null);
-                    // Timer resets handled locally via turnTimer 30 resets in processMove
                 }
             });
             multiEngine.subscribe();
+            multiEngine.syncInitialState();
             setEngine(multiEngine);
 
             return () => multiEngine.unsubscribe();
         }
-    }, [isMultiplayer, roomCode, playerId, isInitializing]);
+    }, [isMultiplayer, roomCode, playerId, isInitializing, playerLives]);
 
     // Toast Event Subscriptions
     useEffect(() => {
@@ -135,6 +218,23 @@ export default function GameScreen({ route, navigation }) {
         }
     }, [latestEvent?.timestamp]);
 
+    const handleDisconnectTimeout = () => {
+        setTurnEndsAt(null);
+        
+        const newPlayersList = initialPlayers.map(p => {
+            if (p.id === playerTurn) return { ...p, penalty: playerLives[playerTurn] + 1 };
+            return { ...p, penalty: playerLives[p.id] };
+        });
+        
+        const nextTurn = getNextPlayer(playerTurn, turnOrder);
+        
+        const title = 'Player Timeout / Disconnected';
+        const message = `${playerNames[playerTurn]} took too long or disconnected.`;
+        engine.sendEvent(title, message, 'error');
+        
+        engine.sendPenalty(newPlayersList, nextTurn, null);
+    };
+
     const handleTimeout = () => {
         // Prevent double execution
         setTurnEndsAt(null);
@@ -142,21 +242,81 @@ export default function GameScreen({ route, navigation }) {
         // Only run timeout logic if it's currently single player, or if it's our turn in multi
         if (!isMultiplayer && playerTurn === 'player') {
             processTimeoutSingle('player', activeCategory);
-        } else if (!isMultiplayer && playerTurn === 'bot') {
-            processTimeoutSingle('bot', activeCategory);
+        } else if (!isMultiplayer && playerTurn.startsWith('bot')) {
+            processTimeoutSingle(playerTurn, activeCategory);
         } else if (isMultiplayer && playerTurn === playerId) {
             processTimeoutMulti(activeCategory);
         }
     };
 
+    const quitMultiplayerMatch = async () => {
+        if (!isMultiplayer || !engine) return;
+
+        // If game is already over or we are already eliminated, just silently leave locally.
+        if (gameState === 'game_over' || playerLives[playerId] >= 10) {
+            engine.unsubscribe();
+            return;
+        }
+
+        // Otherwise, penalize self to 10 (eliminate) and pass turn
+        const newPlayersList = initialPlayers.map(p => {
+            if (p.id === playerId) return { ...p, penalty: 10 };
+            return { ...p, penalty: playerLives[p.id] };
+        });
+        
+        await engine.sendEvent('Player Left', `${playerNames[playerId]} abandoned the match.`, 'error');
+        
+        const nextTurn = playerTurn === playerId ? getNextPlayer(playerId, turnOrder) : playerTurn;
+        await engine.sendPenalty(newPlayersList, nextTurn, null);
+        engine.unsubscribe();
+    };
+
+    const resetRoundSingle = (loser, wordToLock, categoryToLock) => {
+        const newLives = { ...playerLives, [loser]: playerLives[loser] + 1 };
+        setPlayerLives(newLives);
+
+        if (wordToLock && categoryToLock) {
+            setLockedWords(prev => ({
+                ...prev,
+                [categoryToLock]: [...prev[categoryToLock], wordToLock]
+            }));
+        }
+
+        let newTurnOrder = [...turnOrder];
+        if (newLives[loser] >= 10) {
+            newTurnOrder = newTurnOrder.filter(p => p !== loser);
+            setTurnOrder(newTurnOrder);
+            Toast.show({ type: 'error', text1: 'Eliminated!', text2: `${loser === 'player' ? 'YOU' : loser.replace('bot', 'AI ').toUpperCase()} reached 10 penalties and ${loser === 'player' ? 'are' : 'is'} out.` });
+        }
+
+        if (newTurnOrder.length <= 1) {
+            setGameState('game_over');
+        } else {
+            setTimeout(() => {
+                setCurrentFragment('');
+                setPendingLetter(null);
+                setActiveCategory(null);
+                setTurnEndsAt(null);
+                const nextTurn = newLives[loser] >= 10 ? getNextPlayer(loser, turnOrder) : loser;
+                setPlayerTurn(newTurnOrder.includes(nextTurn) ? nextTurn : newTurnOrder[0]);
+                
+                if (loser === 'player' && newLives.player >= 10) {
+                    setGameState('spectate_prompt');
+                } else {
+                    setGameState('playing');
+                }
+            }, 2000);
+        }
+    };
+
     const processTimeoutSingle = (loser, category) => {
         Toast.show({ type: 'error', text1: 'Time is up!', text2: `${loser === 'player' ? 'YOU take' : 'AI takes'} a penalty.` });
-        resetRoundSingle(loser, currentFragment);
+        resetRoundSingle(loser, currentFragment, category);
     };
 
     // Local Bot Hook
     useEffect(() => {
-        if (!isMultiplayer && gameState === 'playing' && playerTurn === 'bot') {
+        if (!isMultiplayer && gameState === 'playing' && playerTurn.startsWith('bot') && !isPaused) {
             // Give bot 1 to 2 seconds to "think"
             const botDelay = Math.floor(Math.random() * 1000) + 1000;
             const botTimer = setTimeout(() => {
@@ -166,17 +326,65 @@ export default function GameScreen({ route, navigation }) {
                     setActiveCategory(targetCategory);
                 }
 
-                const nextLetter = gameDictionary.getNoviceMove(targetCategory, currentFragment, lockedWords[targetCategory]);
+                const diff = settings.difficulty || 'intermediate';
+                const nextLetter = gameDictionary.getAIMove(targetCategory, currentFragment, lockedWords[targetCategory], diff, turnOrder.length);
                 if (!nextLetter) {
                     const fallback = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)];
-                    processMoveSingle(currentFragment + fallback, 'bot', targetCategory);
+                    processMoveSingle(currentFragment + fallback, playerTurn, targetCategory);
                 } else {
-                    processMoveSingle(currentFragment + nextLetter, 'bot', targetCategory);
+                    processMoveSingle(currentFragment + nextLetter, playerTurn, targetCategory);
                 }
             }, botDelay);
             return () => clearTimeout(botTimer);
         }
-    }, [playerTurn, gameState, currentFragment, activeCategory, isMultiplayer]);
+    }, [playerTurn, gameState, currentFragment, activeCategory, isMultiplayer, isPaused]);
+
+    // ==========================================
+    // MULTIPLAYER LOGIC (With Categories)
+    // ==========================================
+    const processMoveMulti = (newFragment, category) => {
+        setCurrentFragment(newFragment);
+        setPendingLetter(null);
+        setTurnEndsAt(Date.now() + settings.turnTimer * 1000);
+        setPlayerTurn(getNextPlayer(playerId, turnOrder));
+
+        const status = gameDictionary.checkStatus(category, newFragment, lockedWords[category]);
+
+        if (status === 'COMPLETE_WORD' || status === 'INVALID') {
+            const newPlayersList = initialPlayers.map(p => {
+                if (p.id === playerId) return { ...p, penalty: playerLives[playerId] + 1 };
+                return { ...p, penalty: playerLives[p.id] };
+            });
+            const nextTurn = getNextPlayer(playerId, turnOrder);
+            
+            const isInvalid = status === 'INVALID';
+            const title = isInvalid ? 'Bluff Caught!' : 'Word Completed!';
+            const message = `"${newFragment}" is ${isInvalid ? 'not a valid prefix for' : 'a valid'} ${category}. ${playerNames[playerId]} takes a penalty.`;
+            engine.sendEvent(title, message, 'error');
+
+            if (status === 'COMPLETE_WORD') {
+                engine.sendPenalty(newPlayersList, nextTurn, { ...lockedWords, [category]: [...lockedWords[category], newFragment] });
+            } else {
+                engine.sendPenalty(newPlayersList, nextTurn, null); // Don't lock bluffs
+            }
+        } else {
+            engine.sendMove(newFragment, category, getNextPlayer(playerId, turnOrder), settings.turnTimer);
+        }
+    };
+
+    const processTimeoutMulti = (category) => {
+        const newPlayersList = initialPlayers.map(p => {
+            if (p.id === playerId) return { ...p, penalty: playerLives[playerId] + 1 };
+            return { ...p, penalty: playerLives[p.id] };
+        });
+        const nextTurn = getNextPlayer(playerId, turnOrder);
+        
+        const title = 'Time is up!';
+        const message = `${playerNames[playerId]} takes a penalty.`;
+        engine.sendEvent(title, message, 'error');
+        
+        engine.sendPenalty(newPlayersList, nextTurn, null);
+    };
 
     // ==========================================
     // SINGLE PLAYER LOGIC (With Categories)
@@ -188,95 +396,20 @@ export default function GameScreen({ route, navigation }) {
 
         const status = gameDictionary.checkStatus(category, newFragment, lockedWords[category]);
 
-        const resetRoundSingle = (loser, wordToLock) => {
-            const newLives = { ...playerLives, [loser]: playerLives[loser] + 1 };
-            setPlayerLives(newLives);
-
-            if (wordToLock) {
-                setLockedWords(prev => ({
-                    ...prev,
-                    [category]: [...prev[category], wordToLock]
-                }));
-            }
-
-            if (newLives.player >= 10 || newLives.bot >= 10) {
-                setGameState('game_over');
-            } else {
-                setTimeout(() => {
-                    setCurrentFragment('');
-                    setPendingLetter(null);
-                    setActiveCategory(null);
-                    setTurnEndsAt(null);
-                    setPlayerTurn('player');
-                    setGameState('playing');
-                }, 2000);
-            }
-        };
-
         if (status === 'COMPLETE_WORD') {
             setGameState('challenged');
-            Toast.show({ type: 'error', text1: 'Word Completed!', text2: `"${newFragment}" is a valid ${category}. ${currentPlayer === 'player' ? 'You take' : 'AI takes'} a penalty.` });
-            resetRoundSingle(currentPlayer, newFragment);
+            Toast.show({ type: 'error', text1: 'Word Completed!', text2: `"${newFragment}" is a valid ${category}. ${currentPlayer === 'player' ? 'You take' : currentPlayer.toUpperCase() + ' takes'} a penalty.` });
+            resetRoundSingle(currentPlayer, newFragment, category); // Lock the valid word
         } else if (status === 'INVALID') {
             setGameState('challenged');
-            Toast.show({ type: 'error', text1: 'Bluff Caught!', text2: `"${newFragment}" is not a valid prefix for ${category}. ${currentPlayer === 'player' ? 'You take' : 'AI takes'} a penalty.` });
-            resetRoundSingle(currentPlayer, newFragment);
+            Toast.show({ type: 'error', text1: 'Bluff Caught!', text2: `"${newFragment}" is not a valid prefix for ${category}. ${currentPlayer === 'player' ? 'You take' : currentPlayer.toUpperCase() + ' takes'} a penalty.` });
+            resetRoundSingle(currentPlayer, null, null); // Don't lock invalid bluffs
         } else {
-            setPlayerTurn(currentPlayer === 'player' ? 'bot' : 'player');
+            setPlayerTurn(getNextPlayer(currentPlayer, turnOrder));
         }
     };
 
-    // ==========================================
-    // MULTIPLAYER LOGIC
-    // ==========================================
-    const processTimeoutMulti = async (category) => {
-        const nextTurn = playerId === 'host' ? 'guest' : 'host';
-        const hostPenalty = playerId === 'host' ? playerLives.player + 1 : playerLives.bot;
-        const guestPenalty = playerId === 'guest' ? playerLives.player + 1 : playerLives.bot;
 
-        const title = 'Time is up!';
-        const message = `${players.find(p => p.id === playerId).label} takes a penalty.`;
-        await engine.sendEvent(title, message, 'error');
-
-        const newLockedWords = {
-            ...lockedWords,
-            [category]: [...lockedWords[category], currentFragment]
-        };
-
-        if (currentFragment) {
-            await engine.sendPenalty(hostPenalty, guestPenalty, nextTurn, newLockedWords);
-        } else {
-            await engine.sendPenalty(hostPenalty, guestPenalty, nextTurn, lockedWords);
-        }
-    };
-
-    const processMoveMulti = async (newFragment, category) => {
-        setPendingLetter(null);
-
-        const status = gameDictionary.checkStatus(category, newFragment, lockedWords[category]);
-        const nextTurn = playerId === 'host' ? 'guest' : 'host';
-
-        if (status === 'COMPLETE_WORD' || status === 'INVALID') {
-            const isInvalid = status === 'INVALID';
-            const title = isInvalid ? 'Bluff Caught!' : 'Word Completed!';
-            const message = `"${newFragment}" is ${isInvalid ? 'not a valid prefix for' : 'a valid'} ${category}. ${players.find(p => p.id === playerId).label} takes a penalty.`;
-
-            await engine.sendEvent(title, message, 'error');
-
-            const hostPenalty = playerId === 'host' ? playerLives.player + 1 : playerLives.bot;
-            const guestPenalty = playerId === 'guest' ? playerLives.player + 1 : playerLives.bot;
-
-            // Generate the new locked words payload to send
-            const newLockedWords = {
-                ...lockedWords,
-                [category]: [...lockedWords[category], newFragment]
-            };
-
-            await engine.sendPenalty(hostPenalty, guestPenalty, nextTurn, newLockedWords);
-        } else {
-            await engine.sendMove(newFragment, category, nextTurn, settings.turnTimer);
-        }
-    };
 
     // ==========================================
     // UI HANDLERS
@@ -334,6 +467,7 @@ export default function GameScreen({ route, navigation }) {
                     console.log('Cancel challenge triggered');
                 } else if (showPauseModal) {
                     setShowPauseModal(false);
+                    setConfirmAction(null);
                     togglePause();
                 } else {
                     setShowPauseModal(true);
@@ -382,14 +516,18 @@ export default function GameScreen({ route, navigation }) {
     }
 
     const players = isMultiplayer
-        ? [
-            { id: 'host', label: playerId === 'host' ? 'P1 (YOU)' : 'Player 1', score: playerId === 'host' ? playerLives.player : playerLives.bot },
-            { id: 'guest', label: playerId === 'guest' ? 'P2 (YOU)' : 'Player 2', score: playerId === 'guest' ? playerLives.player : playerLives.bot },
-        ]
-        : [
-            { id: 'player', label: 'YOU', score: playerLives.player },
-            { id: 'bot', label: 'AI', score: playerLives.bot },
-        ];
+        ? initialPlayers.map(p => ({
+            id: p.id,
+            label: p.id === playerId ? `${p.name} (YOU)` : p.name,
+            score: playerLives[p.id],
+            eliminated: playerLives[p.id] >= 10
+        }))
+        : Object.keys(playerLives).map((key) => ({
+            id: key,
+            label: key === 'player' ? 'YOU' : `AI ${key.replace('bot', '')}`,
+            score: playerLives[key],
+            eliminated: playerLives[key] >= 10
+        }));
 
     return (
         <SafeAreaView style={styles.container}>
@@ -402,45 +540,177 @@ export default function GameScreen({ route, navigation }) {
                             <View style={styles.modalContent}>
                                 <Text style={styles.modalTitle}>GAME PAUSED</Text>
 
+                                {confirmAction === 'restart' ? (
+                                    <>
+                                        <Text style={{ color: '#F43F5E', marginBottom: 20, textAlign: 'center' }}>Are you sure you want to restart the match? All progress will be lost.</Text>
+                                        <TouchableOpacity
+                                            style={[styles.modalBtn, styles.dangerBtn]}
+                                            onPress={async () => {
+                                                setConfirmAction(null);
+                                                // Handle Restart
+                                                if (!isMultiplayer) {
+                                                    setGameState('playing');
+                                                    setPlayerLives(initLives);
+                                                    setTurnOrder(initTurnOrder);
+                                                    setLockedWords({ animals: [], countries: [], fruits: [], vegetables: [] });
+                                                    setCurrentFragment('');
+                                                    setActiveCategory(null);
+                                                    setPlayerTurn('player');
+                                                    setTurnEndsAt(null);
+                                                    setTurnTimer(settings.turnTimer);
+                                                    setPendingLetter(null);
+                                                    setShowPauseModal(false);
+                                                    setIsPaused(false);
+                                                } else {
+                                                    Toast.show({ type: 'info', text1: 'Restart functionality WIP.' });
+                                                }
+                                            }}
+                                        >
+                                            <Text style={styles.modalBtnText}>YES, RESTART</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={styles.modalBtn} onPress={() => setConfirmAction(null)}>
+                                            <Text style={styles.modalBtnText}>CANCEL</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                ) : confirmAction === 'quit' ? (
+                                    <>
+                                        <Text style={{ color: '#F43F5E', marginBottom: 20, textAlign: 'center' }}>Are you sure you want to quit? {isMultiplayer ? 'This will forfeit the match.' : ''}</Text>
+                                        <TouchableOpacity
+                                            style={[styles.modalBtn, styles.dangerBtn]}
+                                            onPress={async () => {
+                                                setConfirmAction(null);
+                                                setShowPauseModal(false);
+                                                setIsPaused(false);
+                                                if (isMultiplayer && engine) {
+                                                    await quitMultiplayerMatch();
+                                                }
+                                                navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+                                            }}
+                                        >
+                                            <Text style={styles.modalBtnText}>YES, QUIT</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={styles.modalBtn} onPress={() => setConfirmAction(null)}>
+                                            <Text style={styles.modalBtnText}>CANCEL</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                ) : (
+                                    <>
+                                        <TouchableOpacity
+                                            style={styles.modalBtn}
+                                            onPress={() => {
+                                                setShowPauseModal(false);
+                                                setConfirmAction(null);
+                                                togglePause();
+                                            }}
+                                        >
+                                            <Text style={styles.modalBtnText}>RESUME</Text>
+                                        </TouchableOpacity>
+
+                                        {(!isMultiplayer || playerId === 'host') && (
+                                            <TouchableOpacity
+                                                style={[styles.modalBtn, styles.dangerBtn]}
+                                                onPress={() => setConfirmAction('restart')}
+                                            >
+                                                <Text style={styles.modalBtnText}>RESTART ROOM</Text>
+                                            </TouchableOpacity>
+                                        )}
+
+                                        <TouchableOpacity
+                                            style={styles.modalBtn}
+                                            onPress={() => setConfirmAction('quit')}
+                                        >
+                                            <Text style={styles.modalBtnText}>QUIT TO MENU</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
+                            </View>
+                        </View>
+                    </Modal>
+
+                    <Modal visible={gameState === 'spectate_prompt'} transparent animationType="slide">
+                        <View style={styles.modalOverlay}>
+                            <View style={styles.modalContent}>
+                                <Text style={styles.modalTitle}>ELIMINATED</Text>
+                                <Text style={{ color: '#F43F5E', fontSize: 18, marginBottom: 40, textAlign: 'center', fontWeight: 'bold' }}>
+                                    You reached 10 penalties! The remaining AI players can finish the match.
+                                </Text>
+
+                                <TouchableOpacity
+                                    style={[styles.modalBtn, { borderColor: '#2DD4BF', backgroundColor: 'rgba(45, 212, 191, 0.1)' }]}
+                                    onPress={() => setGameState('playing')}
+                                >
+                                    <Text style={[styles.modalBtnText, { color: '#2DD4BF' }]}>SPECTATE THE BOTS</Text>
+                                </TouchableOpacity>
+
                                 <TouchableOpacity
                                     style={styles.modalBtn}
                                     onPress={() => {
-                                        setShowPauseModal(false);
-                                        togglePause();
+                                        setGameState('playing');
+                                        setPlayerLives(initLives);
+                                        setTurnOrder(initTurnOrder);
+                                        setLockedWords({ animals: [], countries: [], fruits: [], vegetables: [] });
+                                        setCurrentFragment('');
+                                        setActiveCategory(null);
+                                        setPlayerTurn('player');
+                                        setTurnEndsAt(null);
+                                        setTurnTimer(settings.turnTimer);
+                                        setPendingLetter(null);
                                     }}
                                 >
-                                    <Text style={styles.modalBtnText}>RESUME</Text>
+                                    <Text style={styles.modalBtnText}>RESTART MATCH</Text>
                                 </TouchableOpacity>
 
-                                {(!isMultiplayer || playerId === 'host') && (
+                                <TouchableOpacity
+                                    style={styles.modalBtn}
+                                    onPress={async () => {
+                                        if (isMultiplayer && engine) await quitMultiplayerMatch();
+                                        navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+                                    }}
+                                >
+                                    <Text style={styles.modalBtnText}>QUIT TO MENU</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </Modal>
+
+                    <Modal visible={gameState === 'game_over'} transparent animationType="slide">
+                        <View style={styles.modalOverlay}>
+                            <View style={styles.modalContent}>
+                                <Text style={styles.modalTitle}>GAME OVER</Text>
+                                
+                                <Text style={{ color: (isMultiplayer ? playerLives[playerId] : playerLives.player) >= 10 ? '#F43F5E' : '#2DD4BF', fontSize: 28, fontWeight: '900', letterSpacing: 2, marginBottom: 40, textAlign: 'center' }}>
+                                    {(isMultiplayer ? playerLives[playerId] : playerLives.player) >= 10 
+                                        ? (isMultiplayer ? `${playerNames[turnOrder[0]]?.toUpperCase()} WINS!` : `${turnOrder[0].replace('bot', 'AI ').toUpperCase()} WINS!`)
+                                        : 'YOU WON!'}
+                                </Text>
+
+                                {!isMultiplayer && (
                                     <TouchableOpacity
-                                        style={[styles.modalBtn, styles.dangerBtn]}
+                                        style={[styles.modalBtn, { borderColor: '#2DD4BF', backgroundColor: 'rgba(45, 212, 191, 0.1)' }]}
                                         onPress={() => {
-                                            // Hacky restart
-                                            if (!isMultiplayer) {
-                                                setGameState('playing');
-                                                setPlayerLives({ player: 0, bot: 0 });
-                                                setLockedWords({ animals: [], countries: [], fruits: [], vegetables: [] });
-                                                setCurrentFragment('');
-                                                setActiveCategory(null);
-                                                setPlayerTurn('player');
-                                                setShowPauseModal(false);
-                                                togglePause();
-                                            } else {
-                                                // Not fully implemented for robust multiplayer restart yet
-                                                Toast.show({ type: 'info', text1: 'Restart functionality WIP.' });
-                                            }
+                                            setGameState('playing');
+                                            setPlayerLives(initLives);
+                                            setTurnOrder(initTurnOrder);
+                                            setLockedWords({ animals: [], countries: [], fruits: [], vegetables: [] });
+                                            setCurrentFragment('');
+                                            setActiveCategory(null);
+                                            setPlayerTurn('player');
+                                            setTurnEndsAt(null);
+                                            setTurnTimer(settings.turnTimer);
+                                            setPendingLetter(null);
                                         }}
                                     >
-                                        <Text style={styles.modalBtnText}>RESTART ROOM</Text>
+                                        <Text style={[styles.modalBtnText, { color: '#2DD4BF' }]}>PLAY AGAIN</Text>
                                     </TouchableOpacity>
                                 )}
 
                                 <TouchableOpacity
                                     style={styles.modalBtn}
-                                    onPress={() => {
-                                        setShowPauseModal(false);
-                                        navigation.navigate('Home');
+                                    onPress={async () => {
+                                        if (isMultiplayer && engine) {
+                                            await quitMultiplayerMatch();
+                                        }
+                                        navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
                                     }}
                                 >
                                     <Text style={styles.modalBtnText}>QUIT TO MENU</Text>
@@ -483,7 +753,7 @@ export default function GameScreen({ route, navigation }) {
                         <Text style={styles.turnIndicator}>
                             {gameState === 'game_over'
                                 ? 'GAME OVER'
-                                : (isMyTurn ? (!activeCategory ? 'PICK A CATEGORY' : 'YOUR TURN') : 'OPPONENT TURN')}
+                                : (isMyTurn ? (!activeCategory ? 'PICK A CATEGORY' : 'YOUR TURN') : (isMultiplayer ? 'OPPONENT TURN' : `${playerTurn.toUpperCase()}'S TURN`))}
                         </Text>
                         {activeCategory && gameState === 'playing' && (
                             <Text style={[styles.timerText, turnTimer <= 10 && styles.timerDanger]}>
@@ -544,11 +814,6 @@ export default function GameScreen({ route, navigation }) {
                         </View>
                     )}
 
-                    {gameState === 'game_over' && (
-                        <TouchableOpacity style={styles.exitButton} onPress={() => navigation.navigate('Home')}>
-                            <Text style={styles.exitText}>EXIT TO MENU</Text>
-                        </TouchableOpacity>
-                    )}
                 </View>
             </ScrollView>
         </SafeAreaView>

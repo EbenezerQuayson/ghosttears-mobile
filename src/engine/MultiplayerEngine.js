@@ -17,15 +17,16 @@ export default class MultiplayerEngine {
         return code;
     }
 
-    static async createRoom(gameSettings) {
+    static async createRoom(gameSettings, hostName, hostId) {
         const code = this.generateRoomCode();
 
-        // In this MVP we just create a row anonymously
         const { data, error } = await supabase
             .from('rooms')
             .insert([{
                 room_code: code,
-                host_id: 'host_anon',
+                status: 'waiting',
+                host_id: hostId,
+                players: [{ id: hostId, name: hostName, penalty: 0 }],
                 locked_words: { animals: [], countries: [], fruits: [], vegetables: [] },
                 game_settings: gameSettings
             }])
@@ -39,7 +40,7 @@ export default class MultiplayerEngine {
         return data;
     }
 
-    static async joinRoom(code) {
+    static async joinRoom(code, guestName, guestId) {
         // Check if room exists and is waiting
         const { data, error } = await supabase
             .from('rooms')
@@ -57,20 +58,35 @@ export default class MultiplayerEngine {
             return null;
         }
 
-        // Update room to playing and set initial turn to host
-        const { data: updatedRoom, error: updateError } = await supabase
-            .from('rooms')
-            .update({ status: 'playing', guest_id: 'guest_anon', player_turn: 'host' })
-            .eq('id', data.id)
-            .select()
-            .single();
+        // Call our new RPC to safely append to the JSON array
+        const { error: rpcError } = await supabase.rpc('join_room_safe', {
+            p_room_code: code.toUpperCase(),
+            p_player_id: guestId,
+            p_player_name: guestName
+        });
 
-        if (updateError) {
-            console.error('Error joining room:', updateError);
+        if (rpcError) {
+            console.error('Error joining room via RPC:', rpcError);
             return null;
         }
 
-        return updatedRoom;
+        // Fetch and return the updated room
+        const { data: updatedRoom, error: fetchError } = await supabase
+            .from('rooms')
+            .select('*')
+            .eq('room_code', code.toUpperCase())
+            .single();
+
+        return fetchError ? null : updatedRoom;
+    }
+
+    async startGame(firstPlayerId) {
+        const { error } = await supabase
+            .from('rooms')
+            .update({ status: 'playing', player_turn: firstPlayerId })
+            .eq('room_code', this.roomCode);
+        
+        if (error) console.error('Error starting game:', error);
     }
 
     subscribe() {
@@ -91,6 +107,20 @@ export default class MultiplayerEngine {
                 }
             )
             .subscribe();
+    }
+
+    async syncInitialState() {
+        const { data, error } = await supabase
+            .from('rooms')
+            .select('*')
+            .eq('room_code', this.roomCode)
+            .single();
+        
+        if (data && this.onUpdate) {
+            this.onUpdate(data);
+        } else if (error) {
+            console.error('Error syncing initial state:', error);
+        }
     }
 
     unsubscribe() {
@@ -129,10 +159,9 @@ export default class MultiplayerEngine {
         }
     }
 
-    async sendPenalty(hostPenalty, guestPenalty, nextTurn, lockedWordsObj = null) {
+    async sendPenalty(playersArray, nextTurn, lockedWordsObj = null) {
         const updates = {
-            host_penalty: hostPenalty,
-            guest_penalty: guestPenalty,
+            players: playersArray,
             player_turn: nextTurn,
             active_category: null,
             turn_ends_at: null // Resets the timer until new category is selected
@@ -142,7 +171,9 @@ export default class MultiplayerEngine {
             updates.locked_words = lockedWordsObj;
         }
 
-        if (hostPenalty >= 10 || guestPenalty >= 10) {
+        // Check if game is over (all but one player eliminated)
+        const activePlayers = playersArray.filter(p => p.penalty < 10);
+        if (activePlayers.length <= 1) {
             updates.status = 'finished';
         } else {
             updates.current_fragment = '';
@@ -184,6 +215,17 @@ export default class MultiplayerEngine {
 
         if (error) {
             console.error('Error sending event:', error);
+        }
+    }
+
+    async leaveRoom() {
+        const { error } = await supabase
+            .from('rooms')
+            .update({ status: 'finished' })
+            .eq('room_code', this.roomCode);
+
+        if (error) {
+            console.error('Error leaving room:', error);
         }
     }
 }
