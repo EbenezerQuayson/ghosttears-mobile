@@ -1,117 +1,168 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 
 const PENALTY_WORD = 'GHOSTTEARS';
 
-// A dynamic table to show current penalties for each player
 export default function Scoreboard({ players }) {
-    // players array structure: [{ id: 'host', label: 'Player 1', score: 0 }]
-
     return (
         <View style={styles.container}>
-            {/* Header Row */}
+            {/* Header Title Row */}
             <View style={styles.headerRow}>
                 <View style={styles.playerColumnHeader}>
-                    <Text style={styles.headerText}>Players</Text>
+                    <Text style={styles.headerText}>PLAYER</Text>
                 </View>
-                {PENALTY_WORD.split('').map((char, index) => (
-                    <View key={`header-${index}`} style={styles.letterSlot}>
-                        <Text style={styles.headerText}>{char}</Text>
-                    </View>
-                ))}
+                <View style={styles.slotsRow}>
+                    {PENALTY_WORD.split('').map((char, index) => (
+                        <View key={`header-${index}`} style={styles.headerSlot}>
+                            <Text style={styles.headerChar}>{char}</Text>
+                        </View>
+                    ))}
+                </View>
             </View>
 
-            {/* Player Rows */}
-            {players.map((p) => (
-                <View key={p.id} style={styles.playerRow}>
-                    <View style={styles.playerColumn}>
-                        <Text style={styles.playerLabel}>{p.label}</Text>
+            {/* Players Rows */}
+            {players.map((p) => {
+                return (
+                    <View key={p.id} style={styles.playerRow}>
+                        <View style={styles.playerColumn}>
+                            <Text style={styles.heartIcon}>♥</Text>
+                            <Text style={styles.playerName} numberOfLines={1}>
+                                {p.label}
+                            </Text>
+                        </View>
+                        <View style={styles.slotsRow}>
+                            {PENALTY_WORD.split('').map((char, index) => {
+                                const hasLetter = index < p.score;
+                                return (
+                                    <View
+                                        key={`${p.id}-${index}`}
+                                        style={[
+                                            styles.slot,
+                                            hasLetter ? styles.slotActive : styles.slotInactive
+                                        ]}
+                                    >
+                                        <Text style={[
+                                            styles.slotText,
+                                            hasLetter ? styles.slotTextActive : styles.slotTextInactive
+                                        ]}>
+                                            {char}
+                                        </Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
                     </View>
-                    {PENALTY_WORD.split('').map((char, index) => {
-                        const hasLetter = index < p.score;
-                        return (
-                            <View
-                                key={`${p.id}-${index}`}
-                                style={[styles.letterSlot, hasLetter ? styles.activeSlot : styles.inactiveSlot]}
-                            >
-                                <Text style={[styles.letterText, hasLetter ? styles.activeText : styles.inactiveText]}>
-                                    {char}
-                                </Text>
-                            </View>
-                        );
-                    })}
-                </View>
-            ))}
+                );
+            })}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        paddingHorizontal: 10,
-        paddingVertical: 10,
-        backgroundColor: '#0f0f0f',
-        borderBottomWidth: 1,
-        borderBottomColor: '#1a1a1a',
         width: '100%',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 18,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderWidth: 2,
+        borderColor: '#E8E1CF',
+        borderBottomWidth: 5,
+        borderBottomColor: '#D8D0BC',
+        marginVertical: 6,
     },
     headerRow: {
         flexDirection: 'row',
-        marginBottom: 8,
         alignItems: 'center',
-    },
-    playerRow: {
-        flexDirection: 'row',
+        paddingBottom: 6,
         marginBottom: 6,
-        alignItems: 'center',
+        borderBottomWidth: 2,
+        borderBottomColor: '#F0E9DC',
     },
     playerColumnHeader: {
-        width: 60,
-        marginRight: 8,
-        alignItems: 'flex-start',
-    },
-    playerColumn: {
-        width: 60,
-        marginRight: 8,
-        alignItems: 'flex-start',
-        justifyContent: 'center',
+        width: 76,
     },
     headerText: {
-        color: '#888888',
-        fontSize: 10,
-        fontWeight: 'bold',
+        color: '#A89E8D',
+        fontSize: 11,
+        fontWeight: '900',
         letterSpacing: 1,
     },
-    playerLabel: {
-        color: '#ffffff',
-        fontSize: 12,
-        fontWeight: 'bold',
-        letterSpacing: 1,
-    },
-    letterSlot: {
+    headerSlot: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    headerChar: {
+        color: '#B5ABA0',
+        fontSize: 11,
+        fontWeight: '900',
+        fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', web: 'monospace' }),
+    },
+    playerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 4,
+    },
+    playerColumn: {
+        width: 76,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingRight: 4,
+    },
+    heartIcon: {
+        color: '#FF4757',
+        fontSize: 12,
+        fontWeight: '900',
+    },
+    playerName: {
+        color: '#4A3E3D',
+        fontSize: 12,
+        fontWeight: '800',
+        flex: 1,
+    },
+    slotsRow: {
+        flex: 1,
+        flexDirection: 'row',
+        gap: 3,
+    },
+    slot: {
+        flex: 1,
         height: 24,
-        marginHorizontal: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 6,
     },
-    activeSlot: {
-        backgroundColor: '#ff333333', // Slight red background
-        borderRadius: 2,
+    slotInactive: {
+        backgroundColor: '#F5EFE3',
         borderWidth: 1,
-        borderColor: '#ff3333',
+        borderColor: '#E8E0D0',
+        borderBottomWidth: 2,
+        borderBottomColor: '#DAD1BF',
     },
-    inactiveSlot: {
-        backgroundColor: 'transparent',
+    slotActive: {
+        backgroundColor: '#FF4757',
+        borderBottomWidth: 3,
+        borderBottomColor: '#D63031',
     },
-    letterText: {
-        fontSize: 14,
-        fontWeight: 'bold',
+    slotText: {
+        fontSize: 12,
+        fontWeight: '900',
+        fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', web: 'monospace' }),
     },
-    activeText: {
-        color: '#ff3333',
+    slotTextInactive: {
+        color: '#C7BEAF',
     },
-    inactiveText: {
-        color: '#333333', // Dim gray when not active
+    slotTextActive: {
+        color: '#FFFFFF',
+        ...Platform.select({
+            web: { textShadow: '0px 1px 1px rgba(0, 0, 0, 0.2)' },
+            default: {
+                textShadowColor: 'rgba(0, 0, 0, 0.2)',
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 1,
+            }
+        }),
     }
 });
