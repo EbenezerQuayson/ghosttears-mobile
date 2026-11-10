@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Modal, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Modal, Platform, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Keyboard from '../components/Keyboard';
@@ -510,7 +510,8 @@ export default function GameScreen({ route, navigation }) {
     if (isInitializing) {
         return (
             <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>LOADING DICTIONARIES...</Text>
+                <ActivityIndicator size="large" color="#FFA114" />
+                <Text style={styles.loadingText}>LOADING LEXICON...</Text>
             </View>
         );
     }
@@ -532,22 +533,71 @@ export default function GameScreen({ route, navigation }) {
     return (
         <SafeAreaView style={styles.container}>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-                <View style={{ width: '100%', maxWidth: isDesktop ? 1000 : 480, alignSelf: 'center', flex: 1, paddingVertical: 20 }}>
+                <View style={{ width: '100%', maxWidth: isDesktop ? 1000 : 440, alignSelf: 'center', flex: 1, paddingVertical: 12, paddingHorizontal: 12 }}>
+                    
+                    {/* Top Game Bar */}
+                    <View style={styles.roomHeader}>
+                        <View style={styles.roomTag}>
+                            <View style={styles.liveDot} />
+                            <Text style={styles.roomText}>
+                                {isMultiplayer ? `ROOM ${roomCode}` : 'SOLO PRACTICE'}
+                            </Text>
+                        </View>
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.pauseBtn,
+                                pressed && styles.pauseBtnPressed
+                            ]}
+                            onPress={() => {
+                                if (Platform.OS === 'web' && typeof document !== 'undefined') document.activeElement?.blur();
+                                setShowPauseModal(true);
+                                if (!isPaused) togglePause();
+                            }}
+                        >
+                            <Text style={styles.pauseBtnText}>PAUSE</Text>
+                        </Pressable>
+                    </View>
+
+                    {/* Turn Status and Timer Bar */}
+                    <View style={styles.turnBar}>
+                        <View style={[
+                            styles.turnPlaque,
+                            isMyTurn ? styles.myTurnPlaque : styles.oppTurnPlaque
+                        ]}>
+                            <Text style={styles.turnPlaqueText}>
+                                {gameState === 'game_over'
+                                    ? 'MATCH CONCLUDED'
+                                    : (isMyTurn ? (!activeCategory ? 'PICK A CATEGORY!' : 'YOUR TURN!') : (isMultiplayer ? "OPPONENT'S TURN" : `${playerTurn.replace('bot', 'AI ').toUpperCase()}'S TURN`))}
+                            </Text>
+                        </View>
+                        {activeCategory && gameState === 'playing' && (
+                            <View style={[styles.timerBadge, turnTimer <= 10 && styles.timerDangerBadge]}>
+                                <Text style={styles.timerIcon}>⏳</Text>
+                                <Text style={[styles.timerText, turnTimer <= 10 && styles.timerDangerText]}>
+                                    00:{turnTimer.toString().padStart(2, '0')}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Scoreboard */}
                     <Scoreboard players={players} />
 
+                    {/* Pause Modal */}
                     <Modal visible={showPauseModal || isPaused} transparent animationType="fade">
                         <View style={styles.modalOverlay}>
-                            <View style={styles.modalContent}>
-                                <Text style={styles.modalTitle}>GAME PAUSED</Text>
+                            <View style={styles.modalCard}>
+                                <View style={styles.modalBanner}>
+                                    <Text style={styles.modalBannerText}>PAUSED</Text>
+                                </View>
 
                                 {confirmAction === 'restart' ? (
                                     <>
-                                        <Text style={{ color: '#F43F5E', marginBottom: 20, textAlign: 'center' }}>Are you sure you want to restart the match? All progress will be lost.</Text>
-                                        <TouchableOpacity
-                                            style={[styles.modalBtn, styles.dangerBtn]}
+                                        <Text style={styles.modalBody}>Restart match from beginning? Current penalties will reset.</Text>
+                                        <Pressable
+                                            style={({ pressed }) => [styles.btn3D, styles.orangeBtn, pressed && styles.btn3DPressed]}
                                             onPress={async () => {
                                                 setConfirmAction(null);
-                                                // Handle Restart
                                                 if (!isMultiplayer) {
                                                     setGameState('playing');
                                                     setPlayerLives(initLives);
@@ -566,17 +616,19 @@ export default function GameScreen({ route, navigation }) {
                                                 }
                                             }}
                                         >
-                                            <Text style={styles.modalBtnText}>YES, RESTART</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={styles.modalBtn} onPress={() => setConfirmAction(null)}>
-                                            <Text style={styles.modalBtnText}>CANCEL</Text>
-                                        </TouchableOpacity>
+                                            <Text style={styles.btnText}>YES, RESTART</Text>
+                                        </Pressable>
+                                        <Pressable style={({ pressed }) => [styles.btn3D, styles.neutralBtn, pressed && styles.btn3DPressed]} onPress={() => setConfirmAction(null)}>
+                                            <Text style={styles.neutralBtnText}>CANCEL</Text>
+                                        </Pressable>
                                     </>
                                 ) : confirmAction === 'quit' ? (
                                     <>
-                                        <Text style={{ color: '#F43F5E', marginBottom: 20, textAlign: 'center' }}>Are you sure you want to quit? {isMultiplayer ? 'This will forfeit the match.' : ''}</Text>
-                                        <TouchableOpacity
-                                            style={[styles.modalBtn, styles.dangerBtn]}
+                                        <Text style={styles.modalBody}>
+                                            {isMultiplayer ? 'Quitting will forfeit the match for everyone in the room.' : 'Quit and return to main menu?'}
+                                        </Text>
+                                        <Pressable
+                                            style={({ pressed }) => [styles.btn3D, styles.redBtn, pressed && styles.btn3DPressed]}
                                             onPress={async () => {
                                                 setConfirmAction(null);
                                                 setShowPauseModal(false);
@@ -587,106 +639,67 @@ export default function GameScreen({ route, navigation }) {
                                                 navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
                                             }}
                                         >
-                                            <Text style={styles.modalBtnText}>YES, QUIT</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={styles.modalBtn} onPress={() => setConfirmAction(null)}>
-                                            <Text style={styles.modalBtnText}>CANCEL</Text>
-                                        </TouchableOpacity>
+                                            <Text style={styles.btnText}>YES, QUIT</Text>
+                                        </Pressable>
+                                        <Pressable style={({ pressed }) => [styles.btn3D, styles.neutralBtn, pressed && styles.btn3DPressed]} onPress={() => setConfirmAction(null)}>
+                                            <Text style={styles.neutralBtnText}>CANCEL</Text>
+                                        </Pressable>
                                     </>
                                 ) : (
-                                    <>
-                                        <TouchableOpacity
-                                            style={styles.modalBtn}
+                                    <View style={styles.modalBtnGroup}>
+                                        <Pressable
+                                            style={({ pressed }) => [styles.btn3D, styles.greenBtn, pressed && styles.btn3DPressed]}
                                             onPress={() => {
                                                 setShowPauseModal(false);
                                                 setConfirmAction(null);
                                                 togglePause();
                                             }}
                                         >
-                                            <Text style={styles.modalBtnText}>RESUME</Text>
-                                        </TouchableOpacity>
+                                            <Text style={styles.btnText}>RESUME</Text>
+                                        </Pressable>
 
                                         {(!isMultiplayer || playerId === 'host') && (
-                                            <TouchableOpacity
-                                                style={[styles.modalBtn, styles.dangerBtn]}
+                                            <Pressable
+                                                style={({ pressed }) => [styles.btn3D, styles.orangeBtn, pressed && styles.btn3DPressed]}
                                                 onPress={() => setConfirmAction('restart')}
                                             >
-                                                <Text style={styles.modalBtnText}>RESTART ROOM</Text>
-                                            </TouchableOpacity>
+                                                <Text style={styles.btnText}>RESTART MATCH</Text>
+                                            </Pressable>
                                         )}
 
-                                        <TouchableOpacity
-                                            style={styles.modalBtn}
+                                        <Pressable
+                                            style={({ pressed }) => [styles.btn3D, styles.neutralBtn, pressed && styles.btn3DPressed]}
                                             onPress={() => setConfirmAction('quit')}
                                         >
-                                            <Text style={styles.modalBtnText}>QUIT TO MENU</Text>
-                                        </TouchableOpacity>
-                                    </>
+                                            <Text style={styles.neutralBtnText}>QUIT TO MENU</Text>
+                                        </Pressable>
+                                    </View>
                                 )}
                             </View>
                         </View>
                     </Modal>
 
-                    <Modal visible={gameState === 'spectate_prompt'} transparent animationType="slide">
+                    {/* Spectate Modal */}
+                    <Modal visible={gameState === 'spectate_prompt'} transparent animationType="fade">
                         <View style={styles.modalOverlay}>
-                            <View style={styles.modalContent}>
-                                <Text style={styles.modalTitle}>ELIMINATED</Text>
-                                <Text style={{ color: '#F43F5E', fontSize: 18, marginBottom: 40, textAlign: 'center', fontWeight: 'bold' }}>
-                                    You reached 10 penalties! The remaining AI players can finish the match.
+                            <View style={styles.modalCard}>
+                                <View style={[styles.modalBanner, { backgroundColor: '#FF4757', borderBottomColor: '#D63031' }]}>
+                                    <Text style={styles.modalBannerText}>OUT OF LIVES</Text>
+                                </View>
+                                <Text style={styles.modalBody}>
+                                    You received 10 penalties and completed GHOSTTEARS! You can spectate or start fresh.
                                 </Text>
 
-                                <TouchableOpacity
-                                    style={[styles.modalBtn, { borderColor: '#2DD4BF', backgroundColor: 'rgba(45, 212, 191, 0.1)' }]}
-                                    onPress={() => setGameState('playing')}
-                                >
-                                    <Text style={[styles.modalBtnText, { color: '#2DD4BF' }]}>SPECTATE THE BOTS</Text>
-                                </TouchableOpacity>
+                                <View style={styles.modalBtnGroup}>
+                                    <Pressable
+                                        style={({ pressed }) => [styles.btn3D, styles.tealBtn, pressed && styles.btn3DPressed]}
+                                        onPress={() => setGameState('playing')}
+                                    >
+                                        <Text style={styles.btnText}>SPECTATE BOTS</Text>
+                                    </Pressable>
 
-                                <TouchableOpacity
-                                    style={styles.modalBtn}
-                                    onPress={() => {
-                                        setGameState('playing');
-                                        setPlayerLives(initLives);
-                                        setTurnOrder(initTurnOrder);
-                                        setLockedWords({ animals: [], countries: [], fruits: [], vegetables: [] });
-                                        setCurrentFragment('');
-                                        setActiveCategory(null);
-                                        setPlayerTurn('player');
-                                        setTurnEndsAt(null);
-                                        setTurnTimer(settings.turnTimer);
-                                        setPendingLetter(null);
-                                    }}
-                                >
-                                    <Text style={styles.modalBtnText}>RESTART MATCH</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.modalBtn}
-                                    onPress={async () => {
-                                        if (isMultiplayer && engine) await quitMultiplayerMatch();
-                                        navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
-                                    }}
-                                >
-                                    <Text style={styles.modalBtnText}>QUIT TO MENU</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    </Modal>
-
-                    <Modal visible={gameState === 'game_over'} transparent animationType="slide">
-                        <View style={styles.modalOverlay}>
-                            <View style={styles.modalContent}>
-                                <Text style={styles.modalTitle}>GAME OVER</Text>
-                                
-                                <Text style={{ color: (isMultiplayer ? playerLives[playerId] : playerLives.player) >= 10 ? '#F43F5E' : '#2DD4BF', fontSize: 28, fontWeight: '900', letterSpacing: 2, marginBottom: 40, textAlign: 'center' }}>
-                                    {(isMultiplayer ? playerLives[playerId] : playerLives.player) >= 10 
-                                        ? (isMultiplayer ? `${playerNames[turnOrder[0]]?.toUpperCase()} WINS!` : `${turnOrder[0].replace('bot', 'AI ').toUpperCase()} WINS!`)
-                                        : 'YOU WON!'}
-                                </Text>
-
-                                {!isMultiplayer && (
-                                    <TouchableOpacity
-                                        style={[styles.modalBtn, { borderColor: '#2DD4BF', backgroundColor: 'rgba(45, 212, 191, 0.1)' }]}
+                                    <Pressable
+                                        style={({ pressed }) => [styles.btn3D, styles.greenBtn, pressed && styles.btn3DPressed]}
                                         onPress={() => {
                                             setGameState('playing');
                                             setPlayerLives(initLives);
@@ -700,70 +713,77 @@ export default function GameScreen({ route, navigation }) {
                                             setPendingLetter(null);
                                         }}
                                     >
-                                        <Text style={[styles.modalBtnText, { color: '#2DD4BF' }]}>PLAY AGAIN</Text>
-                                    </TouchableOpacity>
-                                )}
+                                        <Text style={styles.btnText}>RESTART MATCH</Text>
+                                    </Pressable>
 
-                                <TouchableOpacity
-                                    style={styles.modalBtn}
-                                    onPress={async () => {
-                                        if (isMultiplayer && engine) {
-                                            await quitMultiplayerMatch();
-                                        }
-                                        navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
-                                    }}
-                                >
-                                    <Text style={styles.modalBtnText}>QUIT TO MENU</Text>
-                                </TouchableOpacity>
+                                    <Pressable
+                                        style={({ pressed }) => [styles.btn3D, styles.neutralBtn, pressed && styles.btn3DPressed]}
+                                        onPress={async () => {
+                                            if (isMultiplayer && engine) await quitMultiplayerMatch();
+                                            navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+                                        }}
+                                    >
+                                        <Text style={styles.neutralBtnText}>QUIT TO MENU</Text>
+                                    </Pressable>
+                                </View>
                             </View>
                         </View>
                     </Modal>
 
-                    {isMultiplayer && (
-                        <View style={styles.roomHeader}>
-                            <Text style={styles.roomText}>ROOM: {roomCode}</Text>
-                            <TouchableOpacity
-                                style={styles.pauseIconContainer}
-                                onPress={() => {
-                                    setShowPauseModal(true);
-                                    if (!isPaused) togglePause();
-                                }}
-                            >
-                                <Text style={styles.pauseIconText}>||</Text>
-                            </TouchableOpacity>
+                    {/* Game Over Modal */}
+                    <Modal visible={gameState === 'game_over'} transparent animationType="fade">
+                        <View style={styles.modalOverlay}>
+                            <View style={styles.modalCard}>
+                                <View style={[styles.modalBanner, { backgroundColor: '#FFA114', borderBottomColor: '#D77500' }]}>
+                                    <Text style={styles.modalBannerText}>COMPLETED</Text>
+                                </View>
+                                
+                                <Text style={styles.outcomeWinner}>
+                                    {(isMultiplayer ? playerLives[playerId] : playerLives.player) >= 10 
+                                        ? (isMultiplayer ? `${playerNames[turnOrder[0]] || 'Opponent'} WINS!` : `${turnOrder[0].replace('bot', 'AI ').toUpperCase()} WINS!`)
+                                        : 'YOU WON! 🏆'}
+                                </Text>
+
+                                <View style={styles.modalBtnGroup}>
+                                    {!isMultiplayer && (
+                                        <Pressable
+                                            style={({ pressed }) => [styles.btn3D, styles.greenBtn, pressed && styles.btn3DPressed]}
+                                            onPress={() => {
+                                                setGameState('playing');
+                                                setPlayerLives(initLives);
+                                                setTurnOrder(initTurnOrder);
+                                                setLockedWords({ animals: [], countries: [], fruits: [], vegetables: [] });
+                                                setCurrentFragment('');
+                                                setActiveCategory(null);
+                                                setPlayerTurn('player');
+                                                setTurnEndsAt(null);
+                                                setTurnTimer(settings.turnTimer);
+                                                setPendingLetter(null);
+                                            }}
+                                        >
+                                            <Text style={styles.btnText}>PLAY AGAIN</Text>
+                                        </Pressable>
+                                    )}
+
+                                    <Pressable
+                                        style={({ pressed }) => [styles.btn3D, styles.neutralBtn, pressed && styles.btn3DPressed]}
+                                        onPress={async () => {
+                                            if (isMultiplayer && engine) {
+                                                await quitMultiplayerMatch();
+                                            }
+                                            navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+                                        }}
+                                    >
+                                        <Text style={styles.neutralBtnText}>RETURN TO MENU</Text>
+                                    </Pressable>
+                                </View>
+                            </View>
                         </View>
-                    )}
+                    </Modal>
 
-                    {!isMultiplayer && (
-                        <View style={styles.roomHeader}>
-                            <Text style={styles.roomText}>SINGLE PLAYER</Text>
-                            <TouchableOpacity
-                                style={styles.pauseIconContainer}
-                                onPress={() => {
-                                    setShowPauseModal(true);
-                                    if (!isPaused) togglePause();
-                                }}
-                            >
-                                <Text style={styles.pauseIconText}>||</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-
-                    <View style={styles.turnContainer}>
-                        <Text style={styles.turnIndicator}>
-                            {gameState === 'game_over'
-                                ? 'GAME OVER'
-                                : (isMyTurn ? (!activeCategory ? 'PICK A CATEGORY' : 'YOUR TURN') : (isMultiplayer ? 'OPPONENT TURN' : `${playerTurn.toUpperCase()}'S TURN`))}
-                        </Text>
-                        {activeCategory && gameState === 'playing' && (
-                            <Text style={[styles.timerText, turnTimer <= 10 && styles.timerDanger]}>
-                                00:{turnTimer.toString().padStart(2, '0')}
-                            </Text>
-                        )}
-                    </View>
-
+                    {/* Game Layout */}
                     {isDesktop ? (
-                        <View style={{ flexDirection: 'row', gap: 40, alignItems: 'stretch', flex: 1 }}>
+                        <View style={styles.desktopLayout}>
                             <View style={{ flex: 1 }}>
                                 <CategoryBoard
                                     categories={selectedCategories}
@@ -790,7 +810,7 @@ export default function GameScreen({ route, navigation }) {
                             </View>
                         </View>
                     ) : (
-                        <View style={{ flex: 1, gap: 20 }}>
+                        <View style={styles.mobileLayout}>
                             <CategoryBoard
                                 categories={selectedCategories}
                                 activeCategory={activeCategory}
@@ -823,129 +843,271 @@ export default function GameScreen({ route, navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'transparent',
+        backgroundColor: '#F6F3E7',
     },
     loadingContainer: {
         flex: 1,
-        backgroundColor: 'transparent',
+        backgroundColor: '#F6F3E7',
         justifyContent: 'center',
         alignItems: 'center',
+        gap: 12,
     },
     loadingText: {
-        color: '#FFC107',
-        letterSpacing: 4,
-        fontWeight: 'bold',
+        color: '#8C7E6A',
+        letterSpacing: 2,
+        fontSize: 13,
+        fontWeight: '800',
     },
     roomHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        backgroundColor: '#252243',
-        borderBottomWidth: 1,
-        borderBottomColor: '#3B3663',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 14,
+        borderWidth: 2,
+        borderColor: '#E8E1CF',
+        borderBottomWidth: 4,
+        borderBottomColor: '#D8D0BC',
+        marginBottom: 6,
+    },
+    roomTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    liveDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#6DC328',
     },
     roomText: {
-        color: '#FFC107',
+        color: '#4A3E3D',
         fontSize: 12,
         fontWeight: '900',
-        letterSpacing: 2,
+        letterSpacing: 1.5,
+        fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', web: 'monospace' }),
     },
-    pauseIconContainer: {
-        paddingHorizontal: 10,
-    },
-    pauseIconText: {
-        color: '#8B5CF6',
-        fontSize: 14,
-        fontWeight: '900',
-        letterSpacing: 2,
-    },
-    turnContainer: {
-        alignItems: 'center',
-        paddingVertical: 15,
-        flexDirection: 'row',
-        justifyContent: 'center',
-    },
-    turnIndicator: {
-        color: '#ffffff',
-        fontWeight: '900',
-        letterSpacing: 2,
-        backgroundColor: '#8B5CF6',
-        paddingHorizontal: 15,
+    pauseBtn: {
+        paddingHorizontal: 12,
         paddingVertical: 5,
-        borderRadius: 20,
-        overflow: 'hidden',
+        borderRadius: 10,
+        backgroundColor: '#EAE4D3',
+        borderBottomWidth: 3,
+        borderBottomColor: '#CFC7B4',
+        ...Platform.select({
+            web: { cursor: 'pointer', userSelect: 'none' }
+        })
     },
-    timerText: {
-        color: '#A5B4FC',
-        fontWeight: '900',
-        marginLeft: 15,
-        fontSize: 16,
+    pauseBtnPressed: {
+        transform: [{ translateY: 2 }],
+        borderBottomWidth: 1,
     },
-    timerDanger: {
-        color: '#F43F5E',
-    },
-    exitButton: {
-        alignSelf: 'center',
-        marginVertical: 15,
-        paddingHorizontal: 30,
-        paddingVertical: 15,
-        borderWidth: 2,
-        borderColor: '#8B5CF6',
-        borderRadius: 20,
-    },
-    exitText: {
-        color: '#8B5CF6',
+    pauseBtnText: {
+        color: '#7C6F5A',
+        fontSize: 11,
         fontWeight: '900',
         letterSpacing: 1,
     },
+    turnBar: {
+        alignItems: 'center',
+        paddingVertical: 6,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 10,
+    },
+    turnPlaque: {
+        paddingHorizontal: 16,
+        paddingVertical: 7,
+        borderRadius: 12,
+        borderBottomWidth: 3,
+    },
+    myTurnPlaque: {
+        backgroundColor: '#6DC328',
+        borderBottomColor: '#4A8D15',
+    },
+    oppTurnPlaque: {
+        backgroundColor: '#FFA114',
+        borderBottomColor: '#D77500',
+    },
+    turnPlaqueText: {
+        color: '#FFFFFF',
+        fontWeight: '900',
+        fontSize: 12,
+        letterSpacing: 1,
+        ...Platform.select({
+            web: { textShadow: '0px 1px 1px rgba(0, 0, 0, 0.2)' },
+            default: {
+                textShadowColor: 'rgba(0, 0, 0, 0.2)',
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 1,
+            }
+        }),
+    },
+    timerBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#E8E1CF',
+        borderBottomWidth: 3,
+        borderBottomColor: '#D4CBB4',
+        gap: 4,
+    },
+    timerDangerBadge: {
+        backgroundColor: '#FFF1F2',
+        borderColor: '#FF4757',
+        borderBottomColor: '#D63031',
+    },
+    timerIcon: {
+        fontSize: 12,
+    },
+    timerText: {
+        color: '#4A3E3D',
+        fontWeight: '900',
+        fontSize: 13,
+        fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', web: 'monospace' }),
+    },
+    timerDangerText: {
+        color: '#FF4757',
+    },
+    desktopLayout: {
+        flexDirection: 'row',
+        gap: 20,
+        alignItems: 'stretch',
+        flex: 1,
+        marginTop: 6,
+    },
+    mobileLayout: {
+        flex: 1,
+        gap: 6,
+        marginTop: 4,
+    },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(24, 21, 46, 0.85)',
+        backgroundColor: 'rgba(50, 40, 30, 0.55)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
     },
-    modalContent: {
+    modalCard: {
         width: '100%',
-        maxWidth: 400,
-        backgroundColor: '#252243',
-        padding: 30,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#3B3663',
+        maxWidth: 380,
+        backgroundColor: '#FFFFFF',
+        padding: 20,
+        borderRadius: 24,
+        borderWidth: 3,
+        borderColor: '#E8E1CF',
+        borderBottomWidth: 6,
+        borderBottomColor: '#D4CBB4',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.5,
-        shadowRadius: 20,
-        elevation: 10,
     },
-    modalTitle: {
-        color: '#ffffff',
+    modalBanner: {
+        backgroundColor: '#00A8B5',
+        paddingVertical: 8,
+        paddingHorizontal: 24,
+        borderRadius: 14,
+        borderBottomWidth: 4,
+        borderBottomColor: '#007A84',
+        marginBottom: 14,
+        marginTop: -30,
+    },
+    modalBannerText: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '900',
+        letterSpacing: 1.5,
+        ...Platform.select({
+            web: { textShadow: '0px 1px 1px rgba(0, 0, 0, 0.2)' },
+            default: {
+                textShadowColor: 'rgba(0, 0, 0, 0.2)',
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 1,
+            }
+        }),
+    },
+    modalBody: {
+        color: '#6E6152',
+        fontSize: 14,
+        fontWeight: '700',
+        lineHeight: 20,
+        marginBottom: 18,
+        textAlign: 'center',
+    },
+    outcomeWinner: {
+        color: '#6DC328',
         fontSize: 24,
         fontWeight: '900',
-        letterSpacing: 4,
-        marginBottom: 40,
+        letterSpacing: 1,
+        marginBottom: 20,
+        textAlign: 'center',
     },
-    modalBtn: {
-        backgroundColor: '#18152E',
-        paddingVertical: 18,
+    modalBtnGroup: {
         width: '100%',
+        gap: 10,
+    },
+    btn3D: {
+        width: '100%',
+        paddingVertical: 13,
+        borderRadius: 16,
         alignItems: 'center',
-        marginBottom: 15,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#3B3663'
+        justifyContent: 'center',
+        ...Platform.select({
+            web: { cursor: 'pointer', userSelect: 'none' }
+        })
     },
-    dangerBtn: {
-        borderColor: '#F43F5E',
-        backgroundColor: 'rgba(244, 63, 94, 0.1)',
+    btn3DPressed: {
+        transform: [{ translateY: 3 }],
+        borderBottomWidth: 2,
     },
-    modalBtnText: {
-        color: '#ffffff',
+    greenBtn: {
+        backgroundColor: '#6DC328',
+        borderBottomWidth: 5,
+        borderBottomColor: '#4A8D15',
+    },
+    tealBtn: {
+        backgroundColor: '#00A8B5',
+        borderBottomWidth: 5,
+        borderBottomColor: '#007A84',
+    },
+    orangeBtn: {
+        backgroundColor: '#FFA114',
+        borderBottomWidth: 5,
+        borderBottomColor: '#D77500',
+    },
+    redBtn: {
+        backgroundColor: '#FF4757',
+        borderBottomWidth: 5,
+        borderBottomColor: '#D63031',
+    },
+    neutralBtn: {
+        backgroundColor: '#EAE4D3',
+        borderBottomWidth: 4,
+        borderBottomColor: '#CFC7B4',
+    },
+    btnText: {
+        color: '#FFFFFF',
+        fontSize: 16,
         fontWeight: '900',
-        letterSpacing: 2,
+        letterSpacing: 1,
+        ...Platform.select({
+            web: { textShadow: '0px 1.5px 1px rgba(0, 0, 0, 0.2)' },
+            default: {
+                textShadowColor: 'rgba(0, 0, 0, 0.2)',
+                textShadowOffset: { width: 0, height: 1.5 },
+                textShadowRadius: 1,
+            }
+        }),
+    },
+    neutralBtnText: {
+        color: '#7C6F5A',
+        fontSize: 13,
+        fontWeight: '800',
+        letterSpacing: 0.5,
     }
 });

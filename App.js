@@ -67,7 +67,7 @@ export default function App() {
             <Stack.Screen name="Game" component={GameScreen} />
         </Stack.Navigator>
       </NavigationContainer>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Toast />
     </ResponsiveLayout>
   );

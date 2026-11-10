@@ -12,33 +12,31 @@ export default function Keyboard({ onKeyPress, disabled }) {
         <View style={styles.container}>
             {KEYS.map((row, rowIndex) => (
                 <View key={`row-${rowIndex}`} style={styles.row}>
-                    {row.map((key) => (
-                        <Pressable
-                            key={key}
-                            style={({ hovered, pressed }) => [
-                                styles.key,
-                                key === '⌫' && { flex: 1.5, maxWidth: 75 },
-                                disabled && styles.disabledKey,
-                                hovered && !disabled && styles.hoveredKey,
-                                pressed && !disabled && styles.pressedKey,
-                                // Web cursor support
-                                Platform.OS === 'web' && { cursor: disabled ? 'not-allowed' : 'pointer' }
-                            ]}
-                            onPress={() => onKeyPress(key)}
-                            disabled={disabled}
-                        >
-                            {({ hovered }) => (
+                    {row.map((key) => {
+                        const isBackspace = key === '⌫';
+                        return (
+                            <Pressable
+                                key={key}
+                                style={({ pressed }) => [
+                                    styles.key,
+                                    isBackspace && styles.backspaceKey,
+                                    disabled && styles.disabledKey,
+                                    pressed && !disabled && styles.pressedKey,
+                                    Platform.OS === 'web' && { cursor: disabled ? 'default' : 'pointer' }
+                                ]}
+                                onPress={() => onKeyPress(key)}
+                                disabled={disabled}
+                            >
                                 <Text style={[
-                                    styles.keyText, 
-                                    disabled && styles.disabledKeyText,
-                                    hovered && !disabled && styles.hoveredKeyText,
-                                    key === '⌫' && { fontSize: 24 } // Slightly larger icon for backspace
+                                    styles.keyText,
+                                    isBackspace && styles.backspaceText,
+                                    disabled && styles.disabledKeyText
                                 ]}>
                                     {key}
                                 </Text>
-                            )}
-                        </Pressable>
-                    ))}
+                            </Pressable>
+                        );
+                    })}
                 </View>
             ))}
         </View>
@@ -47,61 +45,62 @@ export default function Keyboard({ onKeyPress, disabled }) {
 
 const styles = StyleSheet.create({
     container: {
-        paddingHorizontal: 10,
-        paddingBottom: 20,
+        paddingHorizontal: 6,
+        paddingBottom: 16,
+        paddingTop: 8,
         width: '100%',
+        maxWidth: 500,
+        alignSelf: 'center',
     },
     row: {
         flexDirection: 'row',
         justifyContent: 'center',
-        marginBottom: 8,
+        gap: 5,
+        marginBottom: 6,
     },
     key: {
         flex: 1,
-        maxWidth: 45,
-        height: 50,
-        backgroundColor: '#252243',
+        maxWidth: 44,
+        height: 48,
+        backgroundColor: '#FFFFFF',
         justifyContent: 'center',
         alignItems: 'center',
-        marginHorizontal: 3,
-        borderRadius: 25,
-        borderWidth: 1,
-        borderColor: '#3B3663',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 2,
-        elevation: 2,
-    },
-    hoveredKey: {
-        backgroundColor: '#3b3663',
-        borderColor: '#2DD4BF',
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#E8E1CF',
+        borderBottomWidth: 4,
+        borderBottomColor: '#D4CBB4',
         ...Platform.select({
-            web: {
-                boxShadow: '0px 0px 15px rgba(45, 212, 191, 0.4)',
-                transform: 'translateY(-2px)'
-            }
+            web: { userSelect: 'none' }
         })
     },
+    backspaceKey: {
+        flex: 1.4,
+        maxWidth: 60,
+        backgroundColor: '#FF4757',
+        borderColor: '#FF4757',
+        borderBottomColor: '#D63031',
+    },
     pressedKey: {
-        backgroundColor: '#18152E',
-        borderColor: '#2DD4BF',
+        transform: [{ translateY: 2 }],
+        borderBottomWidth: 2,
     },
     keyText: {
-        color: '#ffffff',
+        color: '#3B332B',
         fontSize: 16,
         fontWeight: '900',
+        fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', web: 'monospace' }),
     },
-    hoveredKeyText: {
-        color: '#2DD4BF',
+    backspaceText: {
+        color: '#FFFFFF',
+        fontSize: 18,
     },
     disabledKey: {
-        backgroundColor: '#18152E',
-        borderColor: '#1f1b36',
-        shadowOpacity: 0,
-        elevation: 0,
+        backgroundColor: '#EDE8DC',
+        borderColor: '#E2DCCF',
+        borderBottomColor: '#D5CEC0',
     },
     disabledKeyText: {
-        color: '#4b4b5c',
+        color: '#BDB4A5',
     }
 });

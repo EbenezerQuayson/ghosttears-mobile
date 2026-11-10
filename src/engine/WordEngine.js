@@ -69,6 +69,7 @@ export class Trie {
         }
     }
 
+    // AI Logic
     getAIMove(fragment, lockedWords = [], difficulty = 'intermediate', activePlayersCount = 2) {
         const cleanFrag = Trie.normalize(fragment);
         const lockedWordsSet = new Set(lockedWords.map(w => Trie.normalize(w)));

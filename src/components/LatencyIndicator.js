@@ -16,14 +16,14 @@ export default function LatencyIndicator() {
 
     if (!isDesktop) return null;
 
-    let color = '#2DD4BF'; // good
-    if (ping > 100) color = '#FFC107'; // warning
-    if (ping > 200) color = '#FF3333'; // bad
+    let dotColor = '#6DC328';
+    if (ping > 100) dotColor = '#FFA114';
+    if (ping > 200) dotColor = '#FF4757';
 
     return (
         <View style={styles.container}>
-            <View style={[styles.dot, { backgroundColor: color }]} />
-            <Text style={styles.text}>{ping} ms</Text>
+            <View style={[styles.dot, { backgroundColor: dotColor }]} />
+            <Text style={styles.text}>{ping}ms</Text>
         </View>
     );
 }
@@ -31,25 +31,29 @@ export default function LatencyIndicator() {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        bottom: 20,
-        right: 20,
+        bottom: 16,
+        right: 16,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#252243',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#E8E1CF',
+        borderBottomWidth: 3,
+        borderBottomColor: '#D4CBB4',
         zIndex: 100,
+        gap: 6,
     },
     dot: {
         width: 8,
         height: 8,
         borderRadius: 4,
-        marginRight: 8,
     },
     text: {
-        color: '#888',
-        fontSize: 12,
-        fontWeight: 'bold',
+        color: '#7C6F5A',
+        fontSize: 11,
+        fontWeight: '800',
     }
 });
